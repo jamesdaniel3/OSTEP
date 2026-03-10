@@ -37,7 +37,7 @@ So to be clear, if any other number was put through this, it would not come out 
 
 ## Excercise 3:
 
-#### Show that the expressions -1U, -1UL, and -1ULL have the maxiumum values and type as the three non-promoted unsigned types, respectively.
+#### Show that the expressions -1U, -1UL, and -1ULL have the maximum values and type as the three non-promoted unsigned types, respectively.
 
 This can borrow alot from the explanation before.
 
@@ -66,3 +66,89 @@ Maximum value: 4,294,967,295
 
 When looking at the value, it can't be signed because if the range of the unsigned ints is [0, 4,294,967,295], than the range of the signed ints is [-2,147,483,648, 2,147,483,647].
 We look at the value as an unsigned value which has been negated and then modulo it. Because it is the halfway point it ends up being equal to itself.
+
+## Excercise 5:
+
+#### Show that A \ B can be computed by A - (A & B)
+
+The difference operator returns all of the values in the first set that are not present in the second set. `A & B` will be equal to a bitset representing only the values that are in both `A` and `B`. Removing this from A will result in the values only available in set `A`.
+Example:
+
+```
+A = 00001111'00001111
+B = 11001100'11001100
+
+0000111100001111 
+1100110011001100 &
+------------------------
+0000110000001100
+
+0000111100001111
+0000110000001100 - 
+--------------------------
+0000001100000011
+```
+
+## Excercise 6:
+
+#### Show that V + 1 = 0
+
+`V` is equal to the full set, so `V` is equal to `0b11111111'111111111`. Adding 1 to this will overflow to 0. 
+
+## Excercise 7:
+
+#### Show that A^B is equivalent to (A - (A & B)) + (B - (A & B)) and A + B - 2 * (A & B)
+
+This is the XOR operator, which means that the result will be the values that are present in only one of `A` or `B`. For the first option, excercise 5 shows that `A - (A & B)` results in the values only present in set `A`. The same is done for set `B` here `(B - (A & B))`. Adding the result together yields the intersection. Option 2 can be proven by showing that it is equivalent to option 1:
+
+```
+(A - (A & B)) + (B - (A & B)) = 
+A - (A & B) + B - (A & B) = 
+A + B - (A & B) - (A & B) = 
+A + B - 2 * (A & B)
+```
+
+## Excercise 8:
+
+#### Show that A | B is equivalent to A + B - (A & B) 
+
+The or operator returns all the values that show up in either of it's operands. `A & B` results in only the values available in both sets and is needed to prevent carrying values. `A + B` will result in the following: 
+- if `A` has a 1 in a given position and `B` has a 0, we have a 1
+- if `B` has a 1 in a given position and `A` has a 0, we have a 2
+- if neither `A` nor `B` has a 1 in a position, we have a 0
+- if both `A` and `B` have a 1 in a position, the poisition becomes 0 and the next poisition becomes 1
+
+All of the consequences above result in a proper calculation of the OR operation on a bitset other than the last one. We should not have numbers carrying over, so we need a way to only account for a number once if it happens twice. That is what subtracting `A & B` allows us to do.
+
+## Excercise 9:
+
+#### Show that ~B can be computed by V - B
+
+The complement operator flips all of the bits in a number. If `V` is the full set and therefore all 1's, `V - B` just results in a number that has a 1 whereever `B` has a 0 and a 0 wherever `B` has a 1. 
+
+## Excercise 10:
+
+#### Show that -B = ~B + 1
+
+This is just how we negate signed integers. Two's complement means you should flip all the bits and add 1. 
+
+## Excercise 11:
+
+#### Show that the bits that are lost in an operation x >> n correspond to the remainder x % (1ULL << n).
+
+`1ULL` in binary would be `0b00...001`. This left shifted would simply move the 1 up in the binary number, or be `2^n`. Everything behind the 1 is kept when we modulo with this number because it can't be divided out. Since we keep everything behind where we shifted too, the remainder found by the modulo is the same as the digits we discarded when right shifting. 
+
+Ex:
+
+```
+1111 0000 0011 1111 >> 5
+0000 0111 1000 0001
+
+0000 0000 0000 0001 << 5
+0000 0000 0010 0000
+
+1111 0000 0011 1111
+0000 0000 0010 0000  %
+-----------------------
+0000 0000 0001 1111
+```
