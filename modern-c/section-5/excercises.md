@@ -152,3 +152,79 @@ Ex:
 -----------------------
 0000 0000 0001 1111
 ```
+
+## Excercise 12 
+
+#### Prove that for unsigned arithmetic, A + ~A is the maximum value 
+
+Thinking of any value `A`, the complement of `A` represented as a binary number would have 1s in any position where `A` has 0s and vice versa. Adding these two numbers together, you will have a binary number with a 1 in every position. This would be equivalent to `0xFFFF...` for the size of the variable, which is the largest possible value. Because we are using unsigned arithmetic, this is the maximum possible value. 
+
+## Excercise 13
+
+#### Prove that for unsigned arithmetic, A + ~A is -1
+
+For a signed integer, -1 can be represented in binary as `0b1111...1111`. As proof of this, consider that 1 would be `0b0000...0001` and two's complement calls for taking the complements of a number and then adding 1 to it, giving us `0b1111...1111`. Excercise 12 shows why `A + ~A` results in a binary number containing only 1's which would be -1 for a signed int. (an unsigned int would see it as the maxiumum value)
+
+## Excercise 14
+
+#### Prove that for unsigned arithmetic, A + (~A + 1) == 0 
+
+See excercise 12. Adding 1 would cause overflow and loop back to a 0 in every position. 
+
+## Excercise 15
+
+#### Show that INT_MIN + INT_MAX is -1 (signed ints)
+
+The minimum integer is represented as `0b1000...0000`. The maximum integer is represented as `0b0111...1111`. Add these together and you get a number with 1's in every position. This is -1.  
+
+## Excercise 16
+
+#### If they exist, the values for all these macros are prescribed by the properties of the types. Think of a closed formulas in N for these values. 
+
+This is referencing the macros `UINT8_WIDTH`, ...,  `UINT128_WIDTH` and `INT8_WIDTH`, ..., `INT128_WIDTH`. I think this question is kind of strangely phrased but for a macro `<type><N>_WIDTH`, the value is always just `N`.
+
+## Excercise 17
+
+#### Show that all representable floating-point values with e < p are multiples of $2^{(e-p)}$
+
+The formula for calculating the floating point value is the following: $$s * 2^e * \sum_{k=1}^p f_k 2^{-k} $$
+
+- $s$ is the sign bit
+- $e$ is the exponent
+- $f_0$ through $f_n$ are binary values known as the mantissa bits 
+
+factor out $2^{-p}$: 
+
+$$s * 2^e * 2^{-p} * \sum_{k=1}^p f_k 2^{p-k} $$
+
+We can say the following is the mantissa:
+
+$$mantissa = \sum_{k=1}^p f_k 2^{p-k}$$
+
+the floating point formula can now be:
+
+$$s * 2^{e-p} * mantissa $$
+
+because $s$ and $mantissa$ are each integers individually, all representable floating point numbers with $e < p$ are multiples of $2^{e-p}$.
+
+## Excercise 18
+
+#### Print the results of the following expresseions: $1.0E-13 + 1.0E-13$ and $(1.0E-13 + (1.0E-13 + 1.0) - 1.0)$
+
+```c 
+#include <stdio.h>
+
+int main(){
+    double firstNum = 1.0E-13 + 1.0E-13;
+    double secondNum = (1.0E-13 + (1.0E-13 + 1.0)) - 1.0;
+
+    printf("The result of the first calculation is %.15e\n", firstNum);
+    printf("The result of the second calculation is %.15e\n", secondNum);
+
+    /*
+    - The result of the first calculation is 2.000000000000000e-13
+    - The result of the second calculation is 1.998401444325282e-13
+    */
+}
+```
+
