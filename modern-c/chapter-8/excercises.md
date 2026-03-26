@@ -228,6 +228,7 @@ int main(int argc, char* argv[argc + 1]){
     int ret = EXIT_FAILURE;
     char buffer[buf_max] = {};
     bool show_line_nums = false;
+    bool is_new_line = true;
     size_t current_line_num = 1;
 
     if (argc > 1 && strcmp(argv[1], "-n") == 0) {
@@ -236,11 +237,15 @@ int main(int argc, char* argv[argc + 1]){
 
     if (argc == 1 || (argc == 2 && show_line_nums == true)) {
         while (fgets(buffer, buf_max, stdin)) {
-            if (show_line_nums &&  strchr(buffer, '\n') != NULL) {
+            if (show_line_nums && is_new_line) {
                 printf("%zu: ", current_line_num);
                 current_line_num++;
+                is_new_line = false;
             }
             fputs(buffer, stdout);
+            if (strchr(buffer, '\n') != NULL) {
+                is_new_line = true;
+            }
         }
         ret = EXIT_SUCCESS;
     }
