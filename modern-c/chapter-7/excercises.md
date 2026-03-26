@@ -104,15 +104,15 @@ int main (int argc, char* argv[]){
 }
 ```
 
-In the previous implementation of `fib(n)`, the function has the process all the way down to the base case ~ $2^n$ times. However, in this new function, process all the way down to a base case once (always taking the path for $- 1$ first) and then we have all of the results stored so none of the recursive calls require any processing. I have included pictures below for an example; I think this is more clear with even larger trees but they are a bit tedius to make:
+In the previous implementation of `fib(n)`, the function has the process all the way down to the base case ~ $2^n$ times. However, in this new function, process all the way down to a base case once (always taking the path for $- 1$ first) and then we have all of the results stored so none of the recursive calls require any processing. I have included pictures below for an example; I think this is more clear with even larger trees but they are a bit tedious to make:
 
 Here is the function calls $without$ memoization:
 
-![Graph of recursive calls in fib function without memoization](/modern-c/section-7/fib_no_memo.png)
+![Graph of recursive calls in fib function without memoization](/modern-c/chapter-7/fib_no_memo.png)
 
 Here is the function calls $with$ memoization:
 
-![Graph of recursive calls in fib function with memoization](/modern-c/section-7/fib_with_memo.png)
+![Graph of recursive calls in fib function with memoization](/modern-c/chapter-7/fib_with_memo.png)
 
 The key thing to understand here is that the calls move all way through the leftmost branch of the tree first. So the first node to return a value is the bottom left. This will allow you to cut off the recursion of any nodes on the right because their value will have always already been found. The effect is much more pronounced as the value of $n$ gets bigger.
 
