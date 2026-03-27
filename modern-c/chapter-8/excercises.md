@@ -280,3 +280,161 @@ int main(int argc, char* argv[argc + 1]){
     return ret;
 }
 ```
+## Excercise 8
+
+#### The second return of `hexatridecimal` makes an assumption about the relation between `a` and 'A'. What is it?
+
+Excercises 8, 9, and 10 refer to this function:
+
+```c
+#include <assert.h>
+/* supposes that lowercase characters are contiguous */
+static_assert('z' - 'a' == 25, "alphabetic characters not contiguous");
+#include <ctype.h>
+
+unsigned hexatridecimal(int a){
+    /* Converts an alphanumeric digit to an unsigned
+    '0' ... '9' => 0 ... 9u
+    'A' ... 'Z' => 10 ... 35u
+    'a' ... 'z' => 10 ... 35u
+    */
+    if (isdigit(a)) {
+        return a - '0';
+    }
+    else {
+        a = toupper(a);
+        return (isupper(a)) ? 10 + (a - 'A') : -1;
+    }
+}
+```
+
+This code makes the assumption that the upper case letters are stored contiguously and therefore that `a` must be >= 'A' and `a` - 'A' <= 25 if `a` is an uppercase letter. 
+
+## Excercise 9
+
+#### Describe an error scenario in which this assumption is not fufilled
+
+If the encodings for upper case letters were for any reason spaced out or stored in some way other than 'A', 'B', ... , 'Z', than sending in an uppercase letter could result in a number outside of the range from [10, 35]. 
+
+## Excercise 10
+
+#### Fix this bug: that is, rewrite this code such that it makes no assumption about the relation between `a` and 'A'
+
+```c
+#include <assert.h>
+/* supposes that lowercase characters are contiguous */
+static_assert('z' - 'a' == 25, "alphabetic characters not contiguous");
+#include <ctype.h>
+
+unsigned hexatridecimal(int a){
+    /* Converts an alphanumeric digit to an unsigned
+    '0' ... '9' => 0 ... 9u
+    'A' ... 'Z' => 10 ... 35u
+    'a' ... 'z' => 10 ... 35u
+    */
+    if (isdigit(a)) {
+        return a - '0';
+    }
+    else {
+        a = tolower(a);
+        return (islower(a)) ? 10 + (a - 'a') : -1;
+    }
+}
+```
+
+We can use the lowercase letters which were checked with the inital staic_assert. 
+
+## Excercise 11
+
+#### Implement a function `find_prefix` as needed by Strtoul
+
+```c
+#include <limits.h>
+#include <errno.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdio.h>
+
+size_t find_prefix(const char* original_string, size_t starting_position, const char* prefix){
+    size_t current_index = 0;
+
+    while (prefix[current_index] != '\0' && 
+        original_string[starting_position + current_index] != '\0' &&
+        tolower(original_string[starting_position + current_index]) == tolower(prefix[current_index])) {
+        current_index++;
+    }
+
+    return current_index;
+}
+
+unsigned long Strtoul_inner(const char* original_string, unsigned base){
+    // This is basically just a stub because the textbook didn't define this function or ask me to 
+    return strtoul(original_string, NULL, base);
+}
+
+unsigned long Strtoul(char const s[static 1], unsigned base) {
+    if (base > 36u) {
+        errno = EINVAL;
+        return ULONG_MAX;
+    }
+
+    size_t i = strspn(s, " \f\n\r\t\v");
+    bool switch_sign = false;
+
+    switch (s[i]) {
+        case '-':
+            switch_sign = true;
+            [[fallthrough]];
+        case '+':
+            ++i; 
+    }
+
+    if (!s[i]) return 0;
+
+    if (!base || base == 16 || base == 2) { // look for prefix
+        size_t adj = find_prefix(s, i, "0x");
+
+        switch (adj){
+            case 2: // There is 0x or 0X prefix
+                if (!base || base == 16) base = 16;
+                // if we were looking for another base, than the x ends our processing
+                else return 0;
+                break;
+            case 1: // There is a 0 prefix
+                adj = find_prefix(s, i, "0b");
+                switch (adj){
+                    case 1: // There is only a 0 prefix
+                        if (!base) base = 8;
+                        break;
+                    default: // There is an 0b or 0B prefix
+                        if (!base || base == 2) base = 2;
+                        // if we are looking for another base, than the b ends our processing
+                        else return 0;
+                        break;
+                }
+                break;
+            default:
+                if (!base) base = 10;
+                break;
+        }
+        i += adj;
+    }
+    if (!s[i]) return 0; // maybe the prefix 0 was the only digit 
+
+    unsigned long ret = Strtoul_inner(s, base); // ignored second argument given in the textbook to make the stub make more sense 
+    return (switch_sign) ? -ret : ret;
+}
+
+int main() {
+    /* Some random test cases */
+    printf("Strtoul test calls:\n");
+    printf("0xFFFF: %lu\n", Strtoul("0xFFFF", 0));
+    printf("-0xFFFF: %lu\n", Strtoul("-0xFFFF", 16));
+    printf("+0xFFFF: %lu\n", Strtoul("+0xFFFF", 32));
+    printf("-0123: %lu\n", Strtoul("-0123", 0));
+    printf("0: %lu\n", Strtoul("-0", 0));
+}
+```
