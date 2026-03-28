@@ -8,17 +8,23 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <time.h>
+#include <stdbool.h>
 
 // NEED COMPRESSION FUNCTIONS 
 
 const char* IMAGE_TO_SEGMENT = "elephants.jpeg";
 const char* OUTPUT_FILENAME = "segemented.jpg";
-const int MAX_DIFFERERNCE_BETWEEN_GROUPS = 75;
+const int MAX_DIFFERERNCE_BETWEEN_GROUPS = 25;
+const bool RANDOMIZE_COLORS = false;
 typedef struct statistic statistic;
 struct statistic {
     double mean_red;
     double mean_green;
     double mean_blue;
+    int random_red;
+    int random_green;
+    int random_blue;
     size_t num_values;
 };
 
@@ -82,6 +88,12 @@ void complete_merge(size_t current_pixel, size_t neighbor, size_t parents[], sta
     stats[current_neighbor_parent_location].mean_green = combined_mean_green;
     stats[current_neighbor_parent_location].num_values = combined_count;
 
+    if (RANDOMIZE_COLORS){
+        stats[current_neighbor_parent_location].random_red = rand();
+        stats[current_neighbor_parent_location].random_green = rand();
+        stats[current_neighbor_parent_location].random_blue = rand();
+    }
+
     // add current group to top group 
     parents[current_parent_location] = current_neighbor_parent_location;
 }
@@ -96,6 +108,7 @@ double calculate_difference(size_t first_pixel, size_t second_pixel, statistic s
 
 
 int main(){
+    srand(time(NULL)); // get random seed 
     int num_cols, num_rows, n;
     unsigned char *image_data = stbi_load(IMAGE_TO_SEGMENT, &num_cols, &num_rows, &n, 3); // array where pixels are stored sequentially row by row
     if (!image_data) {
@@ -142,9 +155,11 @@ int main(){
         size_t parent_index = find_parent(current_pixel, parents);
         statistic group_stats = stats[parent_index];
 
-        new_image_data[current_value] = group_stats.mean_red;
-        new_image_data[current_value + 1] = group_stats.mean_green;
-        new_image_data[current_value + 2] = group_stats.mean_blue;
+        if (RANDOMIZE_COLORS) {
+            new_image_data[current_value] = group_stats.random_red;
+            new_image_data[current_value + 1] = group_stats.random_green;
+            new_image_data[current_value + 2] = group_stats.random_blue;
+        }
     }
 
     stbi_write_jpg(OUTPUT_FILENAME, num_cols, num_rows, 3, new_image_data, 100);
