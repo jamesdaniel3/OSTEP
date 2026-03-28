@@ -11,7 +11,27 @@
 #include <time.h>
 #include <stdbool.h>
 
-// NEED COMPRESSION FUNCTIONS 
+/*
+    ONGOING ERRORS THAT I AM NOT CURRENTLY SOLVING 
+
+    This always happens during execution but does not prevent the image from appearing:
+        stb_image_write.h:1263:14: runtime error: left shift of 16401408 by 8 places cannot be represented in type 'int'
+        SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior stb_image_write.h:1263:14 
+
+    This always shows during compilation:
+        (base) jamesdaniel@MacBook-Pro-6 image-processing-challenge % clang -g -fsanitize=address,undefined -O0 challenge.c -o challenge
+        In file included from challenge.c:6:
+        ./stb_image_write.h:776:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+        776 |       len = sprintf(buffer, "EXPOSURE=          1.0000000000000\n\n-Y %d +X %d\n", y, x);
+            |             ^
+        /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+        278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+            | ^
+        /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+        218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+            |                                                       ^
+        1 warning generated.
+*/
 
 const char* IMAGE_TO_SEGMENT = "elephants.jpeg";
 const char* OUTPUT_FILENAME = "segemented.jpg";
@@ -127,6 +147,7 @@ int main(){
     size_t *parents = malloc(total * sizeof(size_t));
     statistic *stats = malloc(total * sizeof(statistic));
 
+    // fill arrays
     for (int current_value = 0; current_value < num_cols * num_rows * 3; current_value += 3) {
         int current_pixel = (int) current_value / 3;
 
@@ -141,6 +162,7 @@ int main(){
         parents[current_pixel] = SIZE_MAX;
     }
 
+    // handle merging
     for (int current_value = (num_rows * num_cols * 3) - 1; current_value >= 0 ; current_value -= 3) {
         int current_pixel = (int) current_value / 3;
         int top_neighbor_location = find_top_neighbor(current_pixel, parents, num_cols);
@@ -156,6 +178,7 @@ int main(){
         complete_merge(current_pixel, (top_difference < left_difference ? top_neighbor_location : left_neighbor_location), parents, stats);
     }
 
+    // create new image
     unsigned char *new_image_data = malloc(total * sizeof(unsigned char) * 3); 
     for (int current_value = 0; current_value < num_rows * num_cols * 3 ; current_value += 3) {
         int current_pixel = (int) current_value / 3;
