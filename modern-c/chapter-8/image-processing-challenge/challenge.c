@@ -28,20 +28,27 @@ struct statistic {
     size_t num_values;
 };
 
-size_t find_parent(size_t current_index, size_t parents[]) {
-    while (parents[current_index] != SIZE_MAX) {
-        current_index = parents[current_index];
+size_t find_parent_and_compress(size_t current_index, size_t parents[]) {
+    size_t searching_index = current_index;
+    while (parents[searching_index] != SIZE_MAX) {
+        searching_index = parents[searching_index];
     }
 
-    return current_index;
+    while (parents[current_index] != SIZE_MAX) { // compress path after finding parent 
+        size_t temp = parents[current_index];
+        parents[current_index] = searching_index;
+        current_index = temp;
+    }
+
+    return searching_index;
 }
 
 int find_top_neighbor(size_t current_pixel, size_t parents[], int num_cols){
     int result = -1;
-    size_t current_parent = find_parent(current_pixel, parents);
+    size_t current_parent = find_parent_and_compress(current_pixel, parents);
     int neighbor_candidate_pixel = current_pixel - num_cols;
     while (neighbor_candidate_pixel >= 0){
-        if (current_parent == find_parent(neighbor_candidate_pixel, parents)){
+        if (current_parent == find_parent_and_compress(neighbor_candidate_pixel, parents)){
             neighbor_candidate_pixel -= num_cols;
             continue;
         }
@@ -55,10 +62,10 @@ int find_top_neighbor(size_t current_pixel, size_t parents[], int num_cols){
 
 int find_left_neighbor(size_t current_pixel, size_t parents[], int num_cols){
     int result = -1;
-    size_t current_parent = find_parent(current_pixel, parents);
+    size_t current_parent = find_parent_and_compress(current_pixel, parents);
     int neighbor_candidate_pixel = current_pixel - 1;
     while (neighbor_candidate_pixel >= 0 && neighbor_candidate_pixel % num_cols != 0){
-        if (current_parent == find_parent(neighbor_candidate_pixel, parents)){
+        if (current_parent == find_parent_and_compress(neighbor_candidate_pixel, parents)){
             neighbor_candidate_pixel -= 1;
             continue;
         }
@@ -71,8 +78,8 @@ int find_left_neighbor(size_t current_pixel, size_t parents[], int num_cols){
 }
 
 void complete_merge(size_t current_pixel, size_t neighbor, size_t parents[], statistic stats[]){
-    size_t current_parent_location = find_parent(current_pixel, parents);
-    size_t current_neighbor_parent_location = find_parent(neighbor, parents);
+    size_t current_parent_location = find_parent_and_compress(current_pixel, parents);
+    size_t current_neighbor_parent_location = find_parent_and_compress(neighbor, parents);
 
     statistic current_group_stats = stats[current_parent_location];
     statistic neighbor_group_stats = stats[current_neighbor_parent_location];
@@ -139,8 +146,8 @@ int main(){
         int top_neighbor_location = find_top_neighbor(current_pixel, parents, num_cols);
         int left_neighbor_location = find_left_neighbor(current_pixel, parents, num_cols);
 
-        double top_difference = top_neighbor_location ==  -1 ? SIZE_MAX : calculate_difference(find_parent(current_pixel, parents), find_parent(top_neighbor_location, parents), stats);
-        double left_difference = left_neighbor_location ==  -1 ? SIZE_MAX : calculate_difference(find_parent(current_pixel, parents), find_parent(left_neighbor_location, parents), stats);
+        double top_difference = top_neighbor_location ==  -1 ? SIZE_MAX : calculate_difference(find_parent_and_compress(current_pixel, parents), find_parent_and_compress(top_neighbor_location, parents), stats);
+        double left_difference = left_neighbor_location ==  -1 ? SIZE_MAX : calculate_difference(find_parent_and_compress(current_pixel, parents), find_parent_and_compress(left_neighbor_location, parents), stats);
 
         if (top_difference > MAX_DIFFERERNCE_BETWEEN_GROUPS && left_difference > MAX_DIFFERERNCE_BETWEEN_GROUPS) {
             continue;
@@ -152,14 +159,12 @@ int main(){
     unsigned char *new_image_data = malloc(total * sizeof(unsigned char) * 3); 
     for (int current_value = 0; current_value < num_rows * num_cols * 3 ; current_value += 3) {
         int current_pixel = (int) current_value / 3;
-        size_t parent_index = find_parent(current_pixel, parents);
+        size_t parent_index = find_parent_and_compress(current_pixel, parents);
         statistic group_stats = stats[parent_index];
 
-        if (RANDOMIZE_COLORS) {
-            new_image_data[current_value] = group_stats.random_red;
-            new_image_data[current_value + 1] = group_stats.random_green;
-            new_image_data[current_value + 2] = group_stats.random_blue;
-        }
+        new_image_data[current_value] = RANDOMIZE_COLORS ? group_stats.random_red : (unsigned char)group_stats.mean_red;
+        new_image_data[current_value + 1] = RANDOMIZE_COLORS ? group_stats.random_green : (unsigned char)group_stats.mean_green;
+        new_image_data[current_value + 2] = RANDOMIZE_COLORS ? group_stats.random_blue : (unsigned char)group_stats.mean_blue;
     }
 
     stbi_write_jpg(OUTPUT_FILENAME, num_cols, num_rows, 3, new_image_data, 100);
