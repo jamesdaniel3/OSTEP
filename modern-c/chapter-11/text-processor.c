@@ -18,18 +18,18 @@ struct split_text_result {
 };
 
 split_text_result split_text(text_blob text_snippet, size_t split_location){
-    size_t left_split_size = split_location;
-    size_t right_split_size = text_snippet.size - split_location;
+    size_t left_split_size = split_location + 1;
+    size_t right_split_size = text_snippet.size - split_location + 1;
 
-    char *first_text = malloc((left_split_size + 1) * sizeof(char));
-    char *second_text = malloc((right_split_size + 1) * sizeof(char));
+    char *first_text = malloc((left_split_size) * sizeof(char));
+    char *second_text = malloc((right_split_size) * sizeof(char));
 
     // copy from [0, location) like splitting does in python
     memcpy(first_text, text_snippet.text, left_split_size); 
-    first_text[left_split_size] = '\0';
+    first_text[left_split_size - 1] = '\0';
 
     memcpy(second_text, text_snippet.text + split_location, right_split_size); 
-    second_text[right_split_size] = '\0';
+    second_text[right_split_size - 1] = '\0';
 
     free(text_snippet.text);
 
@@ -56,6 +56,25 @@ split_text_result split_text(text_blob text_snippet, size_t split_location){
     return result;
 }
 
+text_blob join_text(text_blob first_snippet, text_blob second_snippet) {
+    char *combined_buffer = malloc((first_snippet.size + second_snippet.size - 1) * sizeof(char));
+
+    memcpy(combined_buffer, first_snippet.text, first_snippet.size - 1); 
+    memcpy(combined_buffer + first_snippet.size - 1, second_snippet.text, second_snippet.size); 
+
+    text_blob result = {
+        .size = first_snippet.size + second_snippet.size - 1,
+        .text = combined_buffer,
+        .previous = first_snippet.previous,
+        .next = second_snippet.next
+    };
+
+    free(first_snippet.text);
+    free(second_snippet.text);
+
+    return result;
+}
+
 int main(){
     char* test_text = malloc(strlen("Hello! My name is James and this is my test.") + 1);
     strcpy(test_text, "Hello! My name is James and this is my test.");
@@ -73,4 +92,8 @@ int main(){
     
     printf("The right piece of the split is: %s\n", text_after_split.second_blob.text);
     printf("It has %zu characters\n", text_after_split.second_blob.size);
+
+    text_blob recombined_text = join_text(text_after_split.first_blob, text_after_split.second_blob);
+    printf("The right piece of the split is: %s\n", recombined_text.text);
+    printf("It has %zu characters\n", recombined_text.size);
 }
