@@ -2,6 +2,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <curses.h> // In linking with curses you need to have -lncurses in your LDFLAGS or on the command line
+
+#define FILEPATH "smaller_text.txt"
+
+// https://invisible-island.net/ncurses/ncurses-intro.html
 
 typedef struct text_blob text_blob;
 struct text_blob {
@@ -75,25 +80,116 @@ text_blob join_text(text_blob first_snippet, text_blob second_snippet) {
     return result;
 }
 
+text_blob* parse_file(const char* file_path, size_t num_lines, text_blob result[static 1]){
+    size_t current_blob_index = 0;
+    FILE * fstream = fopen(file_path, "r");
+
+    if (!fstream) {
+        perror("fopen");
+        exit(1);
+    }
+
+    char * next_line = NULL;
+    size_t capacity = 0;
+    ssize_t line_length;
+
+    while ((line_length = getline(&next_line, &capacity, fstream)) != -1) {
+        char *copy = malloc(line_length + 1);
+        memcpy(copy, next_line, line_length + 1);
+
+        result[current_blob_index] = (text_blob){
+            .size = line_length,
+            .text = copy,
+            .next = NULL,
+            .previous = (current_blob_index == 0 ? NULL : &result[current_blob_index - 1])
+        };
+
+        if (current_blob_index != 0){
+            result[current_blob_index - 1].next = &result[current_blob_index];
+        }
+
+        current_blob_index++;
+    }
+
+    free(next_line);
+    fclose(fstream);
+    return result;
+}
+
+void print_within_screen(text_blob current_text_object[static 1]) {
+    initscr();
+    noecho(); // don't echo user input
+    cbreak(); // read after each character, don't wat for a newline 
+    keypad(stdscr, TRUE); // necessary to allow for reading in inputs like arrow keys
+    use_default_colors(); // use the default colors that are being used in the current terminal
+
+    int max_row, max_col;
+    getmaxyx(stdscr, max_row, max_col);
+
+    text_blob* top_line = current_text_object;
+    int cursor_row = 0;
+
+    while (true) {
+        erase();
+
+        text_blob* iterator = top_line;
+        int current_row = 0;
+        while (iterator != NULL && current_row < max_row) {
+            mvprintw(current_row, 0, "%s", iterator->text);
+
+            // Ensure cursor stays at the start of the line
+            move(current_row, 0);
+
+            iterator = iterator->next;
+            current_row++;
+        }
+
+        move(cursor_row, 0); // leave the cursor at the top after initial write 
+        refresh();
+
+        int user_input = getch();
+
+        if (user_input == KEY_UP) {
+            if (cursor_row != 0) {
+                cursor_row -= 1;
+            }
+            else if (top_line != NULL && top_line->previous != NULL) {
+                top_line = top_line->previous;
+            }
+        }
+
+        else if (user_input == KEY_DOWN) {
+            if (cursor_row != max_row) {
+                cursor_row += 1;
+            }
+            else if (top_line != NULL && top_line->next != NULL) {
+                top_line = top_line->next;
+            }
+        }
+    }
+    endwin();
+}
+
 int main(){
-    char* test_text = malloc(strlen("Hello! My name is James and this is my test.") + 1);
-    strcpy(test_text, "Hello! My name is James and this is my test.");
+    FILE * fstream = fopen(FILEPATH, "r");
 
-    text_blob initial_blob = {
-        .size = strlen(test_text),
-        .text = test_text,
-        .previous = NULL,
-        .next = NULL
-    };
+    if (!fstream) {
+        perror("fopen");
+        return 1;
+    }
 
-    split_text_result text_after_split = split_text(initial_blob, 6);
-    printf("The left piece of the split is: %s\n", text_after_split.first_blob.text);
-    printf("It has %zu characters\n", text_after_split.first_blob.size);
-    
-    printf("The right piece of the split is: %s\n", text_after_split.second_blob.text);
-    printf("It has %zu characters\n", text_after_split.second_blob.size);
+    char * next_line = NULL;
+    size_t capacity = 0;
+    ssize_t line_length;
 
-    text_blob recombined_text = join_text(text_after_split.first_blob, text_after_split.second_blob);
-    printf("The right piece of the split is: %s\n", recombined_text.text);
-    printf("It has %zu characters\n", recombined_text.size);
+    size_t num_lines = 0;
+    while ((line_length = getline(&next_line, &capacity, fstream)) != -1) {
+        num_lines += 1;
+    }
+    fclose(fstream);
+    text_blob result[num_lines];
+    parse_file(FILEPATH, num_lines, result);
+
+    print_within_screen(result);
+    endwin();
 }
