@@ -14,6 +14,7 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 #include <errno.h>
 #include <stdbool.h>
 #include <curses.h> 
+#include <signal.h>
 #include "text_blob.h"
 
 #define COMMAND_ARR_SIZE 100
@@ -44,11 +45,13 @@ text_blob* parse_file(const char* file_path, text_blob lines_of_text[static 1]){
 
     while ((line_length = getline(&next_line, &capacity, fstream)) != -1) {
         size_t text_size = line_length + 1;
-        char *copy = malloc(text_size * 2);
+        size_t buffer_size = text_size * 2;
+        char *copy = malloc(buffer_size);
         memcpy(copy, next_line, text_size);
+        memset(copy + text_size, '\0', buffer_size);
 
         lines_of_text[current_blob_index] = (text_blob){
-            .buffer_size = text_size * 2,
+            .buffer_size = buffer_size,
             .text_size = text_size - 1,
             .text = copy,
             .next = NULL,
@@ -232,7 +235,11 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
                 else if (user_entered_backspace){
                     current_command_index--;
-                    memmove(command + current_command_index, command + current_command_index + 1, COMMAND_ARR_SIZE - (current_command_index + 1));
+                    memmove(
+                        command + current_command_index, 
+                        command + current_command_index + 1, 
+                        COMMAND_ARR_SIZE - (current_command_index + 1)
+                    );
                     continue;
                 }
 
@@ -268,28 +275,33 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             }
 
             // get the text and the size, double the buffer size if needed, update the text 
-            if (cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size) {
-                char *copy = malloc(cursor_row_text_object->buffer_size * 2);
-                memcpy(copy, current_text_object->text, cursor_row_text_object->text_size);
-                free(cursor_row_text_object);
-                cursor_row_text_object->buffer_size *= 2;
+            if (
+                cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size || 
+                cursor_row_text_object->buffer_size - cursor_row_text_object->text_size <= 5 // resize early for small arrays 
+            ) {
+                size_t new_buffer_size = cursor_row_text_object->buffer_size * 2;
+                char *copy = malloc(new_buffer_size);
+
+                memcpy(copy, cursor_row_text_object->text, cursor_row_text_object->buffer_size);
+                memset(copy + cursor_row_text_object->text_size, '\0', new_buffer_size - cursor_row_text_object->text_size);
+                free(cursor_row_text_object->text);
+
+                cursor_row_text_object->buffer_size = new_buffer_size;
                 cursor_row_text_object->text = copy;   // is it problematic that I am referencing a variable that will get cleaned up?
             }
 
-            char *copy = malloc(cursor_row_text_object->buffer_size);
-            memcpy(copy, current_text_object->text, cursor_row_char_index);
-            copy[cursor_row_char_index] = user_input;
-            memcpy(
-                copy + cursor_row_char_index + 1, 
-                current_text_object->text + cursor_row_char_index + 1, 
-                cursor_row_text_object->text_size - cursor_row_char_index
+            memmove(
+                cursor_row_text_object->text + cursor_row_char_index + 1, 
+                cursor_row_text_object->text + cursor_row_char_index, 
+                cursor_row_text_object->text_size - (cursor_row_char_index)
             );
-            free(current_text_object->text);
-            current_text_object->text = copy;
-            current_text_object->text_size++;
+            cursor_row_text_object->text[cursor_row_char_index] = user_input;
+
+            cursor_row_text_object->text_size++;
             cursor_row_char_index++;
         }
     }
+    free(cursor_row_text_object);
     endwin();
 }
 
@@ -299,7 +311,7 @@ int main(int argc, char* argv[argc]){
         exit(1);
     }
 
-    set_escdelay(25); 
+    set_escdelay(25); // how long ncurses has to wait for more input to distinguish the esc char from esc sequences
 
     bool should_create_file = false;
     FILE * fstream = fopen(argv[1], "r");
@@ -335,12 +347,12 @@ int main(int argc, char* argv[argc]){
         // we can create the file at the cleanup stage, when we would write out to a new file anyway
         lines_of_text = malloc(100 * sizeof(text_blob)); 
 
-        char * starter_string = malloc(1 * sizeof(char));
-        starter_string[0] = '\0';
+        char * starter_string = malloc(10 * sizeof(char));
+        memset(starter_string, '\0', 10);
 
         lines_of_text[0] = (text_blob){
-            .text_size = 1,
-            .buffer_size = 100,
+            .text_size = 0,
+            .buffer_size = 10,
             .text = starter_string,
             .next = NULL,
             .previous = NULL
