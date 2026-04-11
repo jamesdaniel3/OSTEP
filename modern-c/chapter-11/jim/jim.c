@@ -48,7 +48,7 @@ text_blob* parse_file(const char* file_path, text_blob lines_of_text[static 1]){
         size_t buffer_size = text_size * 2;
         char *copy = malloc(buffer_size);
         memcpy(copy, next_line, text_size);
-        memset(copy + text_size, '\0', buffer_size);
+        memset(copy + text_size, '\0', buffer_size - text_size);
 
         lines_of_text[current_blob_index] = (text_blob){
             .buffer_size = buffer_size,
@@ -271,6 +271,11 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
         else if (mode == INSERT) {
             if (user_input == 27) { // esc char
                 mode = NORMAL;
+                continue;
+            }
+
+            if (user_input == KEY_DOWN || user_input == KEY_UP || user_input == KEY_LEFT || user_input == KEY_RIGHT) {
+                handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, cursor_row_text_object, top_line);
                 continue;
             }
 
