@@ -14,4 +14,4 @@ struct split_text_result {
 };
 
 split_text_result split_text(text_blob* text_snippet, size_t split_location);
-text_blob join_text(text_blob first_snippet, text_blob second_snippet);
+text_blob* join_text(text_blob* first_snippet, text_blob* second_snippet);

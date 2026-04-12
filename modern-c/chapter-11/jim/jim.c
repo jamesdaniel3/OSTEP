@@ -6,11 +6,13 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 - support basic vim motions
 
 
-
 TODO:
 - ignore bad chars 
 - break out logical components
-- ensure new lines are handled properly 
+- the final print out contains extra new lines 
+- screen should clear fully when we exit 
+- we can move the cursor past the end of the text 
+- There is no protection for overly long command inputs 
 */
 
 #include <stddef.h>
@@ -23,7 +25,7 @@ TODO:
 #include "text_blob.h"
 #include "file_operations.h"
 
-#define COMMAND_ARR_SIZE 100
+#define COMMAND_ARR_SIZE 10
 
 enum {
   NORMAL,
@@ -83,14 +85,29 @@ int evaluate_command(char command[static 1]) {
     return INVALID_COMMAND;
 }
 
-void insert_new_character(text_blob* text_object, size_t location, char new_char){
+void insert_new_character(text_blob* text_object, size_t location, char new_char, bool increment_text_size){
     memmove(
         text_object->text + location + 1, 
         text_object->text + location, 
         text_object->text_size - (location)
     );
     text_object->text[location] = new_char;
-    text_object->text_size++;
+
+    if (increment_text_size) {
+        // can be skipped in the case that this funciton is just used for inserting a \n ahead of splitting 
+        text_object->text_size++;
+    }
+}
+
+void write_log(text_blob* top_line){
+    FILE * fstream = fopen("log.txt", "a");
+    while (top_line != NULL) {
+        fprintf(fstream, "Line Content: %s\n", top_line->text);
+        top_line = top_line->next;
+    }
+
+    fprintf(fstream, "----------------------------------\n");
+    fclose(fstream);
 }
 
 int run_editor(text_blob current_text_object[static 1], size_t mode) {
@@ -240,7 +257,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             }
 
             if (user_input == '\n') {
-                insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n');
+                insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n', false);
                 cursor_row_char_index++; 
 
                 split_text_result new_pair = split_text(cursor_row_text_object, cursor_row_char_index);
@@ -251,21 +268,30 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 continue;
             }
 
-            if (user_entered_backspace && cursor_row_char_index < 1) {
+            if (user_entered_backspace && cursor_row_char_index < 1 && cursor_row_text_object->previous == NULL) {
+                continue;
+            }
+
+            if (user_entered_backspace && cursor_row_char_index < 1 && cursor_row_text_object->previous != NULL) {
+                cursor_row_text_object = cursor_row_text_object->previous;
+                cursor_row--;
+                cursor_row_char_index = cursor_row_text_object->text_size;
+                join_text(cursor_row_text_object, cursor_row_text_object->next);
                 continue;
             }
 
             if (user_entered_backspace) {
-                cursor_row_char_index--;
                 memmove(
+                    cursor_row_text_object->text + cursor_row_char_index - 1, 
                     cursor_row_text_object->text + cursor_row_char_index, 
-                    cursor_row_text_object->text + cursor_row_char_index + 1, 
-                    cursor_row_text_object->text_size - (cursor_row_char_index + 1)
+                    cursor_row_text_object->buffer_size - (cursor_row_char_index)
                 );
+                cursor_row_text_object->text[cursor_row_text_object->buffer_size - 1] = '\0';
+                cursor_row_char_index--;
+                cursor_row_text_object->text_size--;
                 continue;
             }
 
-            // get the text and the size, double the buffer size if needed, update the text 
             if (
                 cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size || 
                 cursor_row_text_object->buffer_size - cursor_row_text_object->text_size <= 5 // resize early for small arrays 
@@ -278,10 +304,10 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 free(cursor_row_text_object->text);
 
                 cursor_row_text_object->buffer_size = new_buffer_size;
-                cursor_row_text_object->text = copy;   // is it problematic that I am referencing a variable that will get cleaned up?
+                cursor_row_text_object->text = copy; 
             }
 
-            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input);
+            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input, true);
             cursor_row_char_index++;
         }
     }
@@ -336,7 +362,7 @@ int main(int argc, char* argv[argc]){
         memset(starter_string + 1, '\0', 9);
 
         lines_of_text[0] = (text_blob){
-            .text_size = 1,
+            .text_size = 0, // newline not included in text size 
             .buffer_size = 10,
             .text = starter_string,
             .next = NULL,

@@ -4,11 +4,11 @@
 #include "text_blob.h"
 
 split_text_result split_text(text_blob* text_snippet, size_t split_location){
-    size_t left_split_size = split_location + 1;
+    size_t left_split_size = split_location;
     size_t left_buffer_size = left_split_size * 2;
 
-    size_t right_split_size = text_snippet->text_size + 1 - split_location;
-    size_t right_buffer_size = right_split_size * 2;
+    size_t right_split_size = text_snippet->text_size - split_location + 1; // 0 when at the end of a line 
+    size_t right_buffer_size = right_split_size * 2 < 10 ? 10 : right_split_size * 2;
 
     char *first_text = malloc(left_buffer_size);
     char *second_text = malloc(right_buffer_size);
@@ -16,7 +16,7 @@ split_text_result split_text(text_blob* text_snippet, size_t split_location){
     memcpy(
         first_text, 
         text_snippet->text, 
-        split_location
+        left_split_size
     ); 
     memset(
         first_text + left_split_size, 
@@ -40,7 +40,7 @@ split_text_result split_text(text_blob* text_snippet, size_t split_location){
     free(text_snippet->text);
 
     text_snippet->text = first_text;
-    text_snippet->text_size = left_split_size;
+    text_snippet->text_size = left_split_size - 1;
     text_snippet->buffer_size = left_buffer_size;
 
     right_snippet->text = second_text;
@@ -59,23 +59,28 @@ split_text_result split_text(text_blob* text_snippet, size_t split_location){
     return result;
 }
 
-text_blob join_text(text_blob first_snippet, text_blob second_snippet) {
-    size_t text_size = first_snippet.text_size + second_snippet.text_size - 1;
-    char *combined_buffer = malloc((text_size * 2) * sizeof(char));
+text_blob* join_text(text_blob* first_snippet, text_blob* second_snippet) {
+    size_t text_size = first_snippet->text_size + second_snippet->text_size + 1;
+    size_t buffer_size = text_size * 2;
+    char *combined_buffer = malloc(buffer_size);
 
-    memcpy(combined_buffer, first_snippet.text, first_snippet.text_size - 1); 
-    memcpy(combined_buffer + first_snippet.text_size - 1, second_snippet.text, second_snippet.text_size); 
+    memcpy(combined_buffer, first_snippet->text, first_snippet->text_size); // cut off the newline on the previous line 
+    combined_buffer[first_snippet->text_size] = ' ';
+    memcpy(combined_buffer + first_snippet->text_size + 1, second_snippet->text, second_snippet->text_size + 1); // include trailing newline
+    memset(
+        combined_buffer + first_snippet->text_size + second_snippet->text_size + 2, // two strings, sapce, newline, and start after that  
+        '\0', 
+        buffer_size - (first_snippet->text_size + second_snippet->text_size + 2)
+    );
 
-    text_blob result = {
-        .text_size = text_size,
-        .buffer_size = text_size * 2,
-        .text = combined_buffer,
-        .previous = first_snippet.previous,
-        .next = second_snippet.next
-    };
+    free(first_snippet->text);
 
-    free(first_snippet.text);
-    free(second_snippet.text);
+    first_snippet->text_size = text_size;
+    first_snippet->buffer_size = buffer_size;
+    first_snippet->text = combined_buffer;
+    first_snippet->next = second_snippet->next;
 
-    return result;
+    free(second_snippet);
+
+    return first_snippet;
 }
