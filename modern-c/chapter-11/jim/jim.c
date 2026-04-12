@@ -3,12 +3,15 @@
 Goal: extend challenge 12 to create a super basic text processor with the following capabilities
 - allow users to create or open and edit files with command line arg giving file path
 - allow for insert and edit modes like vim, save users changes when the session ends 
-- support basic vim motions
+- support vim motions h, j, k, l, H, M, L, w, e, b, 0, dd
 
 
 TODO:
 - ignore bad chars 
+- handle weird output when the terminal resizes
 - break out logical components
+- VIM MOTIONS: hjkl, H, M, L, w, e, b, 0, dd 
+- What happens when lines wrap?
 */
 
 #include <stddef.h>
@@ -57,7 +60,7 @@ void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cur
     }
 
     else if (input == KEY_DOWN) {
-        if (*cursor_row != max_row) {
+        if (*cursor_row != max_row && cursor_row_text_object->next != NULL) {
             *cursor_row += 1;
             cursor_row_text_object = cursor_row_text_object->next;
 
