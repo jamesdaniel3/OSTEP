@@ -9,7 +9,6 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 TODO:
 - ignore bad chars 
 - break out logical components
-- the final print out contains extra new lines 
 - There is no protection for overly long command inputs 
 */
 
@@ -99,18 +98,14 @@ int evaluate_command(char command[static 1]) {
     return INVALID_COMMAND;
 }
 
-void insert_new_character(text_blob* text_object, size_t location, char new_char, bool increment_text_size){
+void insert_new_character(text_blob* text_object, size_t location, char new_char){
     memmove(
         text_object->text + location + 1, 
         text_object->text + location, 
         text_object->text_size - (location)
     );
     text_object->text[location] = new_char;
-
-    if (increment_text_size) {
-        // can be skipped in the case that this funciton is just used for inserting a \n ahead of splitting 
-        text_object->text_size++;
-    }
+    text_object->text_size++;
 }
 
 void cleanup_ncurses(){
@@ -265,9 +260,6 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             }
 
             if (user_input == '\n') {
-                insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n', false);
-                cursor_row_char_index++; 
-
                 split_text_result new_pair = split_text(cursor_row_text_object, cursor_row_char_index);
 
                 cursor_row_text_object = new_pair.second_blob;
@@ -315,7 +307,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 cursor_row_text_object->text = copy; 
             }
 
-            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input, true);
+            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input);
             cursor_row_char_index++;
         }
     }
@@ -364,8 +356,7 @@ int main(int argc, char* argv[argc]){
         lines_of_text = malloc(100 * sizeof(text_blob)); 
 
         char* starter_string = malloc(10 * sizeof(char));
-        starter_string[0] = '\n';
-        memset(starter_string + 1, '\0', 9);
+        memset(starter_string, '\0', 10);
 
         lines_of_text[0] = (text_blob){
             .text_size = 0, // newline not included in text size 

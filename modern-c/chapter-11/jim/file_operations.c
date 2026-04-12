@@ -53,7 +53,7 @@ void output_file(const char* file_path, text_blob current_text_blob[static 1]){
     }
 
     while (current_text_blob != NULL) {
-        fprintf(fstream, "%s", current_text_blob->text);
+        fprintf(fstream, "%s\n", current_text_blob->text);
         free(current_text_blob->text);
         current_text_blob = current_text_blob->next;
     }
