@@ -10,8 +10,8 @@ TODO:
 - ignore bad chars 
 - break out logical components
 - the final print out contains extra new lines 
-- screen should clear fully when we exit 
 - There is no protection for overly long command inputs 
+- weird bug when moving things up :/
 */
 
 #include <stddef.h>
@@ -109,6 +109,12 @@ void write_log(text_blob* top_line){
     fclose(fstream);
 }
 
+void cleanup_ncurses(){
+    erase();
+    refresh();
+    endwin();
+}
+
 int run_editor(text_blob current_text_object[static 1], size_t mode) {
     initscr();
     noecho(); // don't echo user input
@@ -187,6 +193,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                     int result = evaluate_command(command);
                     switch (result) {
                         case EXIT_EDITOR:
+                            cleanup_ncurses();
                             return 0;
                         case EXIT_NORMAL_MODE:
                             mode = INSERT;
@@ -310,8 +317,6 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             cursor_row_char_index++;
         }
     }
-    free(cursor_row_text_object);
-    endwin();
 }
 
 int main(int argc, char* argv[argc]){
