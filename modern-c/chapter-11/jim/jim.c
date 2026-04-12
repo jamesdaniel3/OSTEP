@@ -251,6 +251,20 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 continue;
             }
 
+            if (user_entered_backspace && cursor_row_char_index < 1) {
+                continue;
+            }
+
+            if (user_entered_backspace) {
+                cursor_row_char_index--;
+                memmove(
+                    cursor_row_text_object->text + cursor_row_char_index, 
+                    cursor_row_text_object->text + cursor_row_char_index + 1, 
+                    cursor_row_text_object->text_size - (cursor_row_char_index + 1)
+                );
+                continue;
+            }
+
             // get the text and the size, double the buffer size if needed, update the text 
             if (
                 cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size || 
