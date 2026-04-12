@@ -114,17 +114,6 @@ void insert_new_character(text_blob* text_object, size_t location, char new_char
     }
 }
 
-void write_log(text_blob* top_line){
-    FILE * fstream = fopen("log.txt", "a");
-    while (top_line != NULL) {
-        fprintf(fstream, "Line Content: %s\n", top_line->text);
-        top_line = top_line->next;
-    }
-
-    fprintf(fstream, "----------------------------------\n");
-    fclose(fstream);
-}
-
 void cleanup_ncurses(){
     erase();
     refresh();
