@@ -5,7 +5,7 @@
 
 split_text_result split_text(text_blob* text_snippet, size_t split_location){
     size_t left_split_size = split_location;
-    size_t left_buffer_size = left_split_size * 2;
+    size_t left_buffer_size = left_split_size * 2 < 10 ? 10 : left_split_size * 2;
 
     size_t right_split_size = text_snippet->text_size - split_location + 1; // 0 when at the end of a line 
     size_t right_buffer_size = right_split_size * 2 < 10 ? 10 : right_split_size * 2;
@@ -60,6 +60,15 @@ split_text_result split_text(text_blob* text_snippet, size_t split_location){
 }
 
 text_blob* join_text(text_blob* first_snippet, text_blob* second_snippet) {
+    if(first_snippet-> text_size == 0 && second_snippet->text_size == 0){
+        // added because the logic below was struggling to deal with delting when in between new lines
+        // I think the logic can be rewritten in a more elegant way so that we don't need code specifically for this edge case,
+        // but I am okay with this for now
+        first_snippet->next = second_snippet->next;
+        free(second_snippet);
+        return first_snippet;
+    }
+
     size_t text_size = first_snippet->text_size + second_snippet->text_size + 1;
     size_t buffer_size = text_size * 2;
     char *combined_buffer = malloc(buffer_size);

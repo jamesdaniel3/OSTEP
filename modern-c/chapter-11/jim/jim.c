@@ -11,7 +11,6 @@ TODO:
 - break out logical components
 - the final print out contains extra new lines 
 - There is no protection for overly long command inputs 
-- hitting delete on a blank line results in a heap-buffer-overflow
 */
 
 #include <stddef.h>
