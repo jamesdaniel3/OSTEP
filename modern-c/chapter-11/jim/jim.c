@@ -30,6 +30,7 @@ enum {
 
 enum {
     EXIT_EDITOR,
+    EXIT_EDITOR_WITHOUT_SAVE,
     EXIT_NORMAL_MODE,
     INVALID_COMMAND
 } COMMAND_RESULTS;
@@ -89,6 +90,9 @@ void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cur
 int evaluate_command(char command[static 1]) {
     if (strcmp(":x", command) == 0) {
         return EXIT_EDITOR;
+    }
+    if (strcmp(":q", command) == 0) {
+        return EXIT_EDITOR_WITHOUT_SAVE;
     }
     if (strcmp(":i", command) == 0) {
         return EXIT_NORMAL_MODE;
@@ -191,6 +195,9 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                         case EXIT_EDITOR:
                             cleanup_ncurses();
                             return 0;
+                        case EXIT_EDITOR_WITHOUT_SAVE:
+                            cleanup_ncurses();
+                            return 1;
                         case EXIT_NORMAL_MODE:
                             mode = INSERT;
                             command_started = false;
