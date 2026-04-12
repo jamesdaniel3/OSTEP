@@ -11,7 +11,7 @@ TODO:
 - break out logical components
 - the final print out contains extra new lines 
 - There is no protection for overly long command inputs 
-- weird bug when moving things up :/
+- hitting delete on a blank line results in a heap-buffer-overflow
 */
 
 #include <stddef.h>
@@ -124,8 +124,6 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
     start_color(); // allow for color output
     init_pair(1, COLOR_WHITE, COLOR_RED);
 
-    // need to keep track of where user is and edit both ncurses and the appropriate part of our data structure :/
-
     bool command_started = false;
     bool command_errored = false;
     char bad_command[125] = "Invalid Command: ";
@@ -154,15 +152,15 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
         while (iterator != NULL && current_row < max_row - 1) {
             mvprintw(current_row, 0, "%s", iterator->text);
 
-            // Ensure cursor stays at the start of the line
             if (current_row == cursor_row) {
-                move(cursor_row, cursor_row_char_index); 
                 cursor_row_text_object = iterator;
             }
 
             iterator = iterator->next;
             current_row++;
         }
+
+        move(cursor_row, cursor_row_char_index); 
 
         if (command_started) {
             mvprintw(max_row - 1, 0, "%s", command);
