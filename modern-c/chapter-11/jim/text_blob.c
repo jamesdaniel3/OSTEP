@@ -19,17 +19,35 @@ struct split_text_result {
 
 split_text_result split_text(text_blob text_snippet, size_t split_location){
     size_t left_split_size = split_location + 1;
-    size_t right_split_size = text_snippet.text_size - split_location + 1;
+    size_t left_buffer_size = left_split_size * 2;
 
-    char *first_text = malloc((left_split_size * 2) * sizeof(char));
-    char *second_text = malloc((right_split_size * 2) * sizeof(char));
+    size_t right_split_size = text_snippet.text_size + 1 - split_location;
+    size_t right_buffer_size = right_split_size * 2;
 
-    // copy from [0, location) like splitting does in python
-    memcpy(first_text, text_snippet.text, left_split_size); 
-    first_text[left_split_size - 1] = '\0';
+    char *first_text = malloc(left_buffer_size);
+    char *second_text = malloc(right_buffer_size);
 
-    memcpy(second_text, text_snippet.text + split_location, right_split_size); 
-    second_text[right_split_size - 1] = '\0';
+    memcpy(
+        first_text, 
+        text_snippet.text, 
+        split_location
+    ); 
+    memset(
+        first_text + left_split_size, 
+        '\0', 
+        left_buffer_size - left_split_size
+    );
+
+    memcpy(
+        second_text, 
+        text_snippet.text + split_location, 
+        right_split_size
+    ); 
+    memset(
+        second_text + (text_snippet.text_size - split_location + 1), 
+        '\0', 
+        right_buffer_size - right_split_size
+    );
 
     free(text_snippet.text);
 
