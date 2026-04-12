@@ -128,18 +128,19 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
         text_blob* iterator = top_line;
         int current_row = 0;
+
         while (iterator != NULL && current_row < max_row - 1) {
             mvprintw(current_row, 0, "%s", iterator->text);
 
             // Ensure cursor stays at the start of the line
-            move(current_row, cursor_row_char_index);
+            if (current_row == cursor_row) {
+                move(cursor_row, cursor_row_char_index); 
+                cursor_row_text_object = iterator;
+            }
 
-            cursor_row_text_object = iterator;
             iterator = iterator->next;
             current_row++;
         }
-
-        move(cursor_row, cursor_row_char_index); 
 
         if (command_started) {
             mvprintw(max_row - 1, 0, "%s", command);
@@ -238,13 +239,13 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 continue;
             }
 
-            if (user_input == KEY_ENTER) {
+            if (user_input == '\n') {
                 insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n');
                 cursor_row_char_index++; 
 
                 split_text_result new_pair = split_text(cursor_row_text_object, cursor_row_char_index);
 
-                cursor_row_text_object = &new_pair.second_blob;
+                cursor_row_text_object = new_pair.second_blob;
                 cursor_row_char_index = 0;
                 cursor_row++;
                 continue;

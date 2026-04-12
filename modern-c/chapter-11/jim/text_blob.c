@@ -35,25 +35,24 @@ split_text_result split_text(text_blob* text_snippet, size_t split_location){
         right_buffer_size - right_split_size
     );
 
-    text_blob* left_snippet = malloc(sizeof(text_blob));
     text_blob* right_snippet = malloc(sizeof(text_blob));
 
-    left_snippet->text = first_text;
-    left_snippet->text_size = left_split_size;
-    left_snippet->buffer_size = left_buffer_size;
-    left_snippet->previous = text_snippet->previous;
-    left_snippet->next = right_snippet;
+    free(text_snippet->text);
+
+    text_snippet->text = first_text;
+    text_snippet->text_size = left_split_size;
+    text_snippet->buffer_size = left_buffer_size;
 
     right_snippet->text = second_text;
     right_snippet->text_size = right_split_size;
     right_snippet->buffer_size = right_buffer_size;
-    right_snippet->previous = left_snippet;
-    right_snippet->next = text_snippet->next;
+    right_snippet->previous = text_snippet;
 
-    free(text_snippet->text);
+    right_snippet->next = text_snippet->next;
+    text_snippet->next = right_snippet;
 
     split_text_result result = {
-        .first_blob = left_snippet,
+        .first_blob = text_snippet,
         .second_blob = right_snippet
     };
 
