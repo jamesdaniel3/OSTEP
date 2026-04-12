@@ -42,10 +42,18 @@ void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cur
         if (*cursor_row != 0) {
             *cursor_row -= 1;
             cursor_row_text_object = cursor_row_text_object->previous;
+
+            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
+                *cursor_row_char_index = cursor_row_text_object->text_size;
+            }
         }
         else if (top_line != NULL && top_line->previous != NULL) {
             top_line = top_line->previous;
             cursor_row_text_object = cursor_row_text_object->previous;
+
+            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
+                *cursor_row_char_index = cursor_row_text_object->text_size;
+            }
         }
     }
 
@@ -53,10 +61,18 @@ void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cur
         if (*cursor_row != max_row) {
             *cursor_row += 1;
             cursor_row_text_object = cursor_row_text_object->next;
+
+            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
+                *cursor_row_char_index = cursor_row_text_object->text_size;
+            }
         }
         else if (top_line != NULL && top_line->next != NULL) {
             top_line = top_line->next;
             cursor_row_text_object = cursor_row_text_object->next;
+
+            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
+                *cursor_row_char_index = cursor_row_text_object->text_size;
+            }
         }
     }
 
