@@ -5,6 +5,13 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 - allow for insert and edit modes like vim, save users changes when the session ends 
 - support basic vim motions
 
+
+
+TODO:
+- ignore bad chars 
+- break out logical components
+- ensure new lines are handled properly 
+- insert doesn't handle backspace 
 */
 
 #include <stddef.h>
@@ -14,8 +21,8 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 #include <errno.h>
 #include <stdbool.h>
 #include <curses.h> 
-#include <signal.h>
 #include "text_blob.h"
+#include "file_operations.h"
 
 #define COMMAND_ARR_SIZE 100
 
@@ -29,63 +36,6 @@ enum {
     EXIT_NORMAL_MODE,
     INVALID_COMMAND
 } COMMAND_RESULTS;
-
-text_blob* parse_file(const char* file_path, text_blob lines_of_text[static 1]){
-    size_t current_blob_index = 0;
-    FILE * fstream = fopen(file_path, "r");
-
-    if (!fstream) {
-        perror("Error opening file");
-        exit(1);
-    }
-
-    char * next_line = NULL;
-    size_t capacity = 0;
-    ssize_t line_length;
-
-    while ((line_length = getline(&next_line, &capacity, fstream)) != -1) {
-        size_t text_size = line_length + 1;
-        size_t buffer_size = text_size * 2;
-        char *copy = malloc(buffer_size);
-        memcpy(copy, next_line, text_size);
-        memset(copy + text_size, '\0', buffer_size - text_size);
-
-        lines_of_text[current_blob_index] = (text_blob){
-            .buffer_size = buffer_size,
-            .text_size = text_size - 1,
-            .text = copy,
-            .next = NULL,
-            .previous = (current_blob_index == 0 ? NULL : &lines_of_text[current_blob_index - 1])
-        };
-
-        if (current_blob_index != 0){
-            lines_of_text[current_blob_index - 1].next = &lines_of_text[current_blob_index];
-        }
-
-        current_blob_index++;
-    }
-
-    free(next_line);
-    fclose(fstream);
-    return lines_of_text;
-}
-
-void output_file(const char* file_path, text_blob current_text_blob[static 1]){
-    FILE * fstream = fopen(file_path, "w");
-
-    if (!fstream) {
-        perror("Error opening file");
-        exit(1);
-    }
-
-    while (current_text_blob != NULL) {
-        fprintf(fstream, "%s", current_text_blob->text);
-        free(current_text_blob->text);
-        current_text_blob = current_text_blob->next;
-    }
-
-    fclose(fstream);
-}
 
 void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cursor_row_char_index, text_blob* cursor_row_text_object, text_blob* top_line) {
     if (input == KEY_UP) {
@@ -132,6 +82,16 @@ int evaluate_command(char command[static 1]) {
     }
 
     return INVALID_COMMAND;
+}
+
+void insert_new_character(text_blob* text_object, size_t location, char new_char){
+    memmove(
+        text_object->text + location + 1, 
+        text_object->text + location, 
+        text_object->text_size - (location)
+    );
+    text_object->text[location] = new_char;
+    text_object->text_size++;
 }
 
 int run_editor(text_blob current_text_object[static 1], size_t mode) {
@@ -279,6 +239,18 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 continue;
             }
 
+            if (user_input == KEY_ENTER) {
+                insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n');
+                cursor_row_char_index++; 
+
+                split_text_result new_pair = split_text(*cursor_row_text_object, cursor_row_char_index);
+
+                cursor_row_text_object = &new_pair.second_blob;
+                cursor_row_char_index = 0;
+                cursor_row++;
+                continue;
+            }
+
             // get the text and the size, double the buffer size if needed, update the text 
             if (
                 cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size || 
@@ -295,14 +267,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 cursor_row_text_object->text = copy;   // is it problematic that I am referencing a variable that will get cleaned up?
             }
 
-            memmove(
-                cursor_row_text_object->text + cursor_row_char_index + 1, 
-                cursor_row_text_object->text + cursor_row_char_index, 
-                cursor_row_text_object->text_size - (cursor_row_char_index)
-            );
-            cursor_row_text_object->text[cursor_row_char_index] = user_input;
-
-            cursor_row_text_object->text_size++;
+            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input);
             cursor_row_char_index++;
         }
     }
@@ -352,11 +317,12 @@ int main(int argc, char* argv[argc]){
         // we can create the file at the cleanup stage, when we would write out to a new file anyway
         lines_of_text = malloc(100 * sizeof(text_blob)); 
 
-        char * starter_string = malloc(10 * sizeof(char));
-        memset(starter_string, '\0', 10);
+        char* starter_string = malloc(10 * sizeof(char));
+        starter_string[0] = '\n';
+        memset(starter_string + 1, '\0', 9);
 
         lines_of_text[0] = (text_blob){
-            .text_size = 0,
+            .text_size = 1,
             .buffer_size = 10,
             .text = starter_string,
             .next = NULL,
