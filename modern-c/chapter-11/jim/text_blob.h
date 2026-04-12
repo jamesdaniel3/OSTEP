@@ -9,9 +9,9 @@ struct text_blob {
 
 typedef struct split_text_result split_text_result;
 struct split_text_result {
-    text_blob first_blob;
-    text_blob second_blob;
+    text_blob* first_blob;
+    text_blob* second_blob;
 };
 
-split_text_result split_text(text_blob text_snippet, size_t split_location);
+split_text_result split_text(text_blob* text_snippet, size_t split_location);
 text_blob join_text(text_blob first_snippet, text_blob second_snippet);

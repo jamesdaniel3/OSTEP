@@ -1,27 +1,13 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include "text_blob.h"
 
-typedef struct text_blob text_blob;
-struct text_blob {
-    size_t text_size;
-    size_t buffer_size;
-    char* text;
-    text_blob* next;
-    text_blob* previous;
-};
-
-typedef struct split_text_result split_text_result;
-struct split_text_result {
-    text_blob first_blob;
-    text_blob second_blob;
-};
-
-split_text_result split_text(text_blob text_snippet, size_t split_location){
+split_text_result split_text(text_blob* text_snippet, size_t split_location){
     size_t left_split_size = split_location + 1;
     size_t left_buffer_size = left_split_size * 2;
 
-    size_t right_split_size = text_snippet.text_size + 1 - split_location;
+    size_t right_split_size = text_snippet->text_size + 1 - split_location;
     size_t right_buffer_size = right_split_size * 2;
 
     char *first_text = malloc(left_buffer_size);
@@ -29,7 +15,7 @@ split_text_result split_text(text_blob text_snippet, size_t split_location){
 
     memcpy(
         first_text, 
-        text_snippet.text, 
+        text_snippet->text, 
         split_location
     ); 
     memset(
@@ -40,37 +26,35 @@ split_text_result split_text(text_blob text_snippet, size_t split_location){
 
     memcpy(
         second_text, 
-        text_snippet.text + split_location, 
+        text_snippet->text + split_location, 
         right_split_size
     ); 
     memset(
-        second_text + (text_snippet.text_size - split_location + 1), 
+        second_text + (text_snippet->text_size - split_location + 1), 
         '\0', 
         right_buffer_size - right_split_size
     );
 
-    free(text_snippet.text);
+    text_blob* left_snippet = malloc(sizeof(text_blob));
+    text_blob* right_snippet = malloc(sizeof(text_blob));
 
-    text_blob left_blob = {
-        .text_size = left_split_size,
-        .buffer_size = left_split_size * 2,
-        .text = first_text,
-        .previous = text_snippet.previous
-    };
+    left_snippet->text = first_text;
+    left_snippet->text_size = left_split_size;
+    left_snippet->buffer_size = left_buffer_size;
+    left_snippet->previous = text_snippet->previous;
+    left_snippet->next = right_snippet;
 
-    text_blob right_blob = {
-        .text_size = right_split_size,
-        .buffer_size = right_split_size * 2,
-        .text = second_text,
-        .next = text_snippet.next
-    };
+    right_snippet->text = second_text;
+    right_snippet->text_size = right_split_size;
+    right_snippet->buffer_size = right_buffer_size;
+    right_snippet->previous = left_snippet;
+    right_snippet->next = text_snippet->next;
 
-    left_blob.next = &right_blob;
-    right_blob.previous = &left_blob;
+    free(text_snippet->text);
 
     split_text_result result = {
-        .first_blob = left_blob,
-        .second_blob = right_blob
+        .first_blob = left_snippet,
+        .second_blob = right_snippet
     };
 
     return result;

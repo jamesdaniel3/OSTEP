@@ -11,7 +11,6 @@ TODO:
 - ignore bad chars 
 - break out logical components
 - ensure new lines are handled properly 
-- insert doesn't handle backspace 
 */
 
 #include <stddef.h>
@@ -243,7 +242,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 insert_new_character(cursor_row_text_object, cursor_row_char_index, '\n');
                 cursor_row_char_index++; 
 
-                split_text_result new_pair = split_text(*cursor_row_text_object, cursor_row_char_index);
+                split_text_result new_pair = split_text(cursor_row_text_object, cursor_row_char_index);
 
                 cursor_row_text_object = &new_pair.second_blob;
                 cursor_row_char_index = 0;
