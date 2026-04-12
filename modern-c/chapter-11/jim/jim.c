@@ -18,6 +18,7 @@ TODO:
 #include <errno.h>
 #include <stdbool.h>
 #include <curses.h> 
+#include <ctype.h>
 #include "text_blob.h"
 #include "file_operations.h"
 
@@ -101,14 +102,20 @@ int evaluate_command(char command[static 1]) {
     return INVALID_COMMAND;
 }
 
-void insert_new_character(text_blob* text_object, size_t location, char new_char){
+void insert_character_into_document(text_blob* text_object, size_t* current_location, char new_char){
     memmove(
-        text_object->text + location + 1, 
-        text_object->text + location, 
-        text_object->text_size - (location)
+        text_object->text + *current_location + 1, 
+        text_object->text + *current_location, 
+        text_object->text_size - (*current_location)
     );
-    text_object->text[location] = new_char;
+    text_object->text[*current_location] = new_char;
     text_object->text_size++;
+    *current_location += 1;
+}
+
+void insert_character_into_command(char command[static 1], size_t* current_location, int new_char){
+    command[*current_location] = new_char;
+    *current_location += 1;
 }
 
 void cleanup_ncurses(){
@@ -186,6 +193,8 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             if (user_input == ':') {
                 command_started = true;
                 command_errored = false;
+                insert_character_into_command(command, &current_command_index, ':');
+                continue;
             }
 
             if (command_started) {
@@ -212,6 +221,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                             command_errored = true;
                             break;
                     }
+                    continue;
                 }
 
                 else if (user_entered_backspace && current_command_index <= 1) {
@@ -244,21 +254,27 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                     continue;
                 }
 
-                else {
-                    if (current_command_index >= COMMAND_ARR_SIZE - 1) {
-                        const char * command_too_long_message = "Commands cannot exceed 8 characters in length.";
-                        size_t command_too_long_message_size = sizeof("Commands cannot exceed 8 characters in length.");
-                        memcpy(error_message + sizeof("Invalid Command: ") - 1, command_too_long_message, command_too_long_message_size);
-                        current_command_index = 0;
-                        memset(command, '\0', COMMAND_ARR_SIZE);
-                        command_started = false;
-                        command_errored = true;
-                    }
-                    else {
-                        command[current_command_index] = user_input;
-                        current_command_index++;
-                    }
+                if (current_command_index >= COMMAND_ARR_SIZE - 1) {
+                    const char * command_too_long_message = "Commands cannot exceed 8 characters in length.";
+                    size_t command_too_long_message_size = sizeof("Commands cannot exceed 8 characters in length.");
+                    memcpy(error_message + sizeof("Invalid Command: ") - 1, command_too_long_message, command_too_long_message_size);
+                    current_command_index = 0;
+                    memset(command, '\0', COMMAND_ARR_SIZE);
+                    command_started = false;
+                    command_errored = true;
+                    continue;
                 }
+
+                if(!isalnum(user_input)){
+                    // don't let the user type anything that is not explicity handled and is not a leter or digit
+                    // we could restrict to just letters for the moment but maybe we will want numbers in the future 
+                    
+                    // can I make this throw an alert like vim does?
+                    continue;
+                }
+
+                insert_character_into_command(command, &current_command_index, user_input);
+
             }
             else {
                 handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, cursor_row_text_object, top_line);
@@ -311,11 +327,8 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
             if (user_input == '\t') {
                 // treating tabs as two spaces
-                insert_new_character(cursor_row_text_object, cursor_row_char_index, ' ');
-                cursor_row_char_index++;
-
-                insert_new_character(cursor_row_text_object, cursor_row_char_index, ' ');
-                cursor_row_char_index++;
+                insert_character_into_document(cursor_row_text_object, &cursor_row_char_index, ' ');
+                insert_character_into_document(cursor_row_text_object, &cursor_row_char_index, ' ');
                 continue;
             }
 
@@ -334,8 +347,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 cursor_row_text_object->text = copy; 
             }
 
-            insert_new_character(cursor_row_text_object, cursor_row_char_index, user_input);
-            cursor_row_char_index++;
+            insert_character_into_document(cursor_row_text_object, &cursor_row_char_index, user_input);
         }
     }
 }
