@@ -309,6 +309,16 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 continue;
             }
 
+            if (user_input == '\t') {
+                // treating tabs as two spaces
+                insert_new_character(cursor_row_text_object, cursor_row_char_index, ' ');
+                cursor_row_char_index++;
+
+                insert_new_character(cursor_row_text_object, cursor_row_char_index, ' ');
+                cursor_row_char_index++;
+                continue;
+            }
+
             if (
                 cursor_row_text_object->text_size >= .8 * cursor_row_text_object->buffer_size || 
                 cursor_row_text_object->buffer_size - cursor_row_text_object->text_size <= 5 // resize early for small arrays 
