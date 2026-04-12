@@ -11,7 +11,6 @@ TODO:
 - break out logical components
 - the final print out contains extra new lines 
 - screen should clear fully when we exit 
-- we can move the cursor past the end of the text 
 - There is no protection for overly long command inputs 
 */
 
@@ -68,7 +67,7 @@ void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cur
     }
 
     else if (input == KEY_RIGHT) {
-        if (*cursor_row_char_index != cursor_row_text_object->text_size - 1) {
+        if (*cursor_row_char_index < cursor_row_text_object->text_size) {
             *cursor_row_char_index += 1;
         }
     }
