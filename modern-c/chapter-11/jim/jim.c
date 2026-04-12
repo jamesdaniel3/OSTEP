@@ -9,7 +9,6 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 TODO:
 - ignore bad chars 
 - break out logical components
-- There is no protection for overly long command inputs 
 */
 
 #include <stddef.h>
@@ -125,7 +124,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
     bool command_started = false;
     bool command_errored = false;
-    char bad_command[125] = "Invalid Command: ";
+    char error_message[125] = "Invalid Command: ";
 
     int max_row, max_col;
     getmaxyx(stdscr, max_row, max_col);
@@ -168,7 +167,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
         if (command_errored) {
             attron(COLOR_PAIR(1));
-            mvprintw(max_row - 1, 0, "%s", bad_command);
+            mvprintw(max_row - 1, 0, "%s", error_message);
             attroff(COLOR_PAIR(1));
         }
 
@@ -199,7 +198,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                             command[current_command_index] = '\0';
                             break;
                         default:
-                            memcpy(bad_command + sizeof("Invalid Command: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
+                            memcpy(error_message + sizeof("Invalid Command: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
                             current_command_index = 0;
                             memset(command, '\0', COMMAND_ARR_SIZE);
                             command_started = false;
@@ -239,8 +238,19 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 }
 
                 else {
-                    command[current_command_index] = user_input;
-                    current_command_index++;
+                    if (current_command_index >= COMMAND_ARR_SIZE - 1) {
+                        const char * command_too_long_message = "Commands cannot exceed 8 characters in length.";
+                        size_t command_too_long_message_size = sizeof("Commands cannot exceed 8 characters in length.");
+                        memcpy(error_message + sizeof("Invalid Command: ") - 1, command_too_long_message, command_too_long_message_size);
+                        current_command_index = 0;
+                        memset(command, '\0', COMMAND_ARR_SIZE);
+                        command_started = false;
+                        command_errored = true;
+                    }
+                    else {
+                        command[current_command_index] = user_input;
+                        current_command_index++;
+                    }
                 }
             }
             else {
