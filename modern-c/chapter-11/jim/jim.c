@@ -8,9 +8,9 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 
 TODO:
 - ignore bad chars 
+- need a way to handle apostrophes
 - handle weird output when the terminal resizes
 - break out logical components
-- VIM MOTIONS: hjkl, H, M, L, w, e, b, 0, dd 
 - What happens when lines wrap?
 */
 
@@ -39,54 +39,234 @@ enum {
     INVALID_COMMAND
 } COMMAND_RESULTS;
 
-void handle_cursor_movement(int input, int max_row, int* cursor_row, size_t* cursor_row_char_index, text_blob* cursor_row_text_object, text_blob* top_line) {
-    if (input == KEY_UP) {
+void handle_cursor_movement(
+    int input,
+    int max_row,
+    int* cursor_row,
+    size_t* cursor_row_char_index,
+    text_blob** cursor_row_text_object,
+    text_blob** top_line,
+    char prefix
+) {
+    if (input == 'H') { // move to top of screen 
+        while (*cursor_row != 0 && (*cursor_row_text_object)->previous) {
+            *cursor_row_text_object = (*cursor_row_text_object)->previous;
+            *cursor_row -= 1;
+        }
+        *cursor_row_char_index = 0;
+    }
+
+    else if (input == 'M') { // move to middle of screen 
+        while (*cursor_row < max_row / 2 && (*cursor_row_text_object)->next) {
+            *cursor_row_text_object = (*cursor_row_text_object)->next;
+            *cursor_row += 1;
+        }
+
+        while (*cursor_row > max_row / 2 && (*cursor_row_text_object)->previous) {
+            *cursor_row_text_object = (*cursor_row_text_object)->previous;
+            *cursor_row -= 1;
+        }
+
+        *cursor_row_char_index = 0;
+    }
+
+    else if (input == 'L') { // move to bottom of screen 
+        while (*cursor_row_text_object && (*cursor_row_text_object)->next) {
+            *cursor_row_text_object = (*cursor_row_text_object)->next;
+            *cursor_row += 1;
+        }
+        *cursor_row_char_index = 0;
+    }
+
+    else if (input == '0') {
+        *cursor_row_char_index = 0;
+    }
+
+    else if (input == 'w') {
+        int current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+
+        while (current_char != ' ' &&
+               *cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+            (*cursor_row_char_index)++;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        while (current_char == ' ' &&
+               *cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+            (*cursor_row_char_index)++;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+    }
+
+    else if (input == 'e') {
+        int current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+
+        bool user_is_in_word = current_char != ' ';
+        bool user_is_at_word_end =
+            *cursor_row_char_index != (*cursor_row_text_object)->text_size &&
+            (*cursor_row_text_object)->text[*cursor_row_char_index + 1] == ' ';
+
+        if (user_is_in_word && !user_is_at_word_end) {
+            while (current_char != ' ' &&
+                   *cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+                (*cursor_row_char_index)++;
+                current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+            }
+
+            if (*cursor_row_char_index == (*cursor_row_text_object)->text_size - 1) {
+                return;
+            }
+
+            (*cursor_row_char_index)--;
+            return;
+        }
+
+        if (user_is_in_word && user_is_at_word_end) {
+            (*cursor_row_char_index)++;
+        }
+
+        current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+
+        while (current_char == ' ' &&
+               *cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+            (*cursor_row_char_index)++;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        while (current_char != ' ' &&
+               *cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+            (*cursor_row_char_index)++;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        if (*cursor_row_char_index == (*cursor_row_text_object)->text_size - 1) {
+            return;
+        }
+
+        (*cursor_row_char_index)--;
+    }
+
+    else if (input == 'b') {
+        int current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+
+        bool user_is_in_word = current_char != ' ';
+        bool user_is_at_word_start =
+            *cursor_row_char_index > 0 &&
+            (*cursor_row_text_object)->text[*cursor_row_char_index - 1] == ' ';
+
+        if (user_is_in_word && !user_is_at_word_start) {
+            while (current_char != ' ' && *cursor_row_char_index > 0) {
+                (*cursor_row_char_index)--;
+                current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+            }
+
+            if (*cursor_row_char_index == 0) {
+                return;
+            }
+
+            (*cursor_row_char_index)++;
+            return;
+        }
+
+        if (user_is_in_word && user_is_at_word_start) {
+            (*cursor_row_char_index)--;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        while (current_char == ' ' && *cursor_row_char_index > 0) {
+            (*cursor_row_char_index)--;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        while (current_char != ' ' && *cursor_row_char_index > 0) {
+            (*cursor_row_char_index)--;
+            current_char = (*cursor_row_text_object)->text[*cursor_row_char_index];
+        }
+
+        if (*cursor_row_char_index == 0) {
+            return;
+        }
+
+        (*cursor_row_char_index)++;
+    }
+
+    else if (input == 'd' && prefix == 'd') { // delete current line
+        text_blob* node = *cursor_row_text_object;
+
+        bool is_first = node->previous == NULL;
+        bool is_last  = node->next == NULL;
+
+        if (is_first && is_last) {
+            *top_line = NULL;
+            *cursor_row_text_object = NULL;
+            *cursor_row = 0;
+        }
+        else if (is_first) {
+            *top_line = node->next;
+            (*top_line)->previous = NULL;
+
+            *cursor_row_text_object = *top_line;
+            *cursor_row = 0;
+        }
+        else if (is_last) {
+            node->previous->next = NULL;
+            *cursor_row_text_object = node->previous;
+            (*cursor_row)--;
+        }
+        else {
+            node->previous->next = node->next;
+            node->next->previous = node->previous;
+
+            *cursor_row_text_object = node->previous;
+            (*cursor_row)--;
+        }
+
+        prefix = 0;
+    }
+
+    else if (input == KEY_UP || input == 'k') {
+        if (!(*cursor_row_text_object)->previous) return;
+
         if (*cursor_row != 0) {
             *cursor_row -= 1;
-            cursor_row_text_object = cursor_row_text_object->previous;
+            *cursor_row_text_object = (*cursor_row_text_object)->previous;
 
-            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
-                *cursor_row_char_index = cursor_row_text_object->text_size;
+            if (*cursor_row_char_index > (*cursor_row_text_object)->text_size) {
+                *cursor_row_char_index = (*cursor_row_text_object)->text_size;
             }
         }
-        else if (top_line != NULL && top_line->previous != NULL) {
-            top_line = top_line->previous;
-            cursor_row_text_object = cursor_row_text_object->previous;
-
-            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
-                *cursor_row_char_index = cursor_row_text_object->text_size;
-            }
+        else if (*top_line && (*top_line)->previous) {
+            *top_line = (*top_line)->previous;
+            *cursor_row_text_object = (*cursor_row_text_object)->previous;
         }
     }
 
-    else if (input == KEY_DOWN) {
-        if (*cursor_row != max_row && cursor_row_text_object->next != NULL) {
+    else if (input == KEY_DOWN || input == 'j') {
+        if (!(*cursor_row_text_object)->next) return;
+
+        if (*cursor_row != max_row) {
             *cursor_row += 1;
-            cursor_row_text_object = cursor_row_text_object->next;
+            *cursor_row_text_object = (*cursor_row_text_object)->next;
 
-            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
-                *cursor_row_char_index = cursor_row_text_object->text_size;
+            if (*cursor_row_char_index > (*cursor_row_text_object)->text_size) {
+                *cursor_row_char_index = (*cursor_row_text_object)->text_size;
             }
         }
-        else if (top_line != NULL && top_line->next != NULL) {
-            top_line = top_line->next;
-            cursor_row_text_object = cursor_row_text_object->next;
-
-            if (*cursor_row_char_index > cursor_row_text_object->text_size) {
-                *cursor_row_char_index = cursor_row_text_object->text_size;
-            }
+        else if (*top_line && (*top_line)->next) {
+            *top_line = (*top_line)->next;
+            *cursor_row_text_object = (*cursor_row_text_object)->next;
         }
     }
 
-    else if (input == KEY_LEFT) {
+    else if (input == KEY_LEFT || input == 'h') {
         if (*cursor_row_char_index != 0) {
-            *cursor_row_char_index -= 1;
+            (*cursor_row_char_index)--;
         }
     }
 
-    else if (input == KEY_RIGHT) {
-        if (*cursor_row_char_index < cursor_row_text_object->text_size) {
-            *cursor_row_char_index += 1;
+    else if (input == KEY_RIGHT || input == 'l') {
+        if (*cursor_row_char_index < (*cursor_row_text_object)->text_size) {
+            (*cursor_row_char_index)++;
         }
     }
 }
@@ -150,6 +330,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
     char command[COMMAND_ARR_SIZE] = {0}; 
     size_t current_command_index = 0;
     size_t current_command_size = 0;
+    char normal_mode_prefix = 0; 
 
     while (true) {
         erase();
@@ -215,6 +396,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                             command_started = false;
                             current_command_index = 0;
                             command[current_command_index] = '\0';
+                            normal_mode_prefix = 0;
                             break;
                         default:
                             memcpy(error_message + sizeof("Invalid Command: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
@@ -280,8 +462,9 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
             }
             else {
-                handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, cursor_row_text_object, top_line);
+                handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, &cursor_row_text_object, &top_line, normal_mode_prefix);
             }
+            normal_mode_prefix = user_input; 
         }
 
         else if (mode == INSERT) {
@@ -291,7 +474,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
             }
 
             if (user_input == KEY_DOWN || user_input == KEY_UP || user_input == KEY_LEFT || user_input == KEY_RIGHT) {
-                handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, cursor_row_text_object, top_line);
+                handle_cursor_movement(user_input, max_row, &cursor_row, &cursor_row_char_index, &cursor_row_text_object, &top_line, 0);
                 continue;
             }
 
