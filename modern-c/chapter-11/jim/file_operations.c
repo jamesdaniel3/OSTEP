@@ -19,6 +19,13 @@ text_blob* parse_file(const char* file_path, text_blob lines_of_text[static 1]){
 
     while ((line_length = getline(&next_line, &capacity, fstream)) != -1) {
         size_t text_size = line_length + 1;
+
+        if (next_line[line_length - 1] == '\n') {
+            next_line[line_length - 1] = '\0';
+            line_length--;
+            text_size--;
+        }
+
         size_t buffer_size = text_size * 2;
         char *copy = malloc(buffer_size);
         memcpy(copy, next_line, text_size);
