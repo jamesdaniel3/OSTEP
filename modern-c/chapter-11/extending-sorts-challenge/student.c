@@ -88,6 +88,24 @@ student* generate_random_students_list(size_t num_students){
     return generated_students;
 }
 
-// define compare student by GPA
-// define compare student by grade
-// define compare student by name
+int compare_students_by_name(void const* a, void const *b){
+    student const* student_a = a;
+    student const* student_b = b;
+
+    int result = strcmp(student_a->name, student_b->name);
+
+    return result;
+}
+
+int compare_students_by_gpa(void const* a, void const *b){
+    student const* student_a = a;
+    student const* student_b = b;
+
+    if (student_a->gpa < student_b->gpa) {
+        return -1;
+    }
+    if (student_a->gpa > student_b->gpa) {
+        return 1;
+    }
+    return 0;
+}
