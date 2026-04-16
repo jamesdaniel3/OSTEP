@@ -72,20 +72,16 @@ student create_student(){
     return new_student;
 }
 
-student* generate_random_students_list(size_t num_students){
+void generate_random_students_list(student * arr, size_t num_students){
     rng64_randomize();
-
-    student* generated_students = malloc(sizeof(student) * num_students);
 
     size_t current_index = 0;
 
     while (current_index < num_students) {
         student new_student = create_student();
-        generated_students[current_index] = new_student;
+        arr[current_index] = new_student;
         current_index++;
     }
-
-    return generated_students;
 }
 
 int compare_students_by_name(void const* a, void const *b){

@@ -5,7 +5,7 @@ struct student {
     char* name ;
 };
 
-student* generate_random_students_list(size_t num_students);
+void generate_random_students_list(student* arr, size_t num_students);
 
 int compare_students_by_name(void const* a, void const *b);
 
