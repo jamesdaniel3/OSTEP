@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdio.h>
 #include "student.h"
 #include "rng64.h"
 

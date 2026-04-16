@@ -15,6 +15,7 @@ Can you extend the performance comparison of your sorting algorithms (challenge 
 #include <stdio.h>
 #include "student.h"
 #include "quicksort-extended.h"
+#include "mergesort-extended.h"
 
 #define NUM_STUDENTS 10
 
@@ -36,7 +37,8 @@ bool sort_check_generic(void* base, size_t element_size, size_t num_elements, co
 
 int main(){
     student* test_students = generate_random_students_list(NUM_STUDENTS);
-    quicksort_generic(test_students, sizeof(student), NUM_STUDENTS, compare_students_by_name);
+    // quicksort_generic(test_students, sizeof(student), NUM_STUDENTS, compare_students_by_name);
+    mergesort_generic(test_students, sizeof(student), NUM_STUDENTS, compare_students_by_name);
 
     bool result = sort_check_generic(test_students, sizeof(student), NUM_STUDENTS, compare_students_by_name);
 
