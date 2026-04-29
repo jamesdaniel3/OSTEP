@@ -63,7 +63,84 @@ void test_replace_text() {
     assert(new_string == original_string);
 }
 
+void test_is_valid_regex(){
+    char* regex = "[A-z]+";
+    assert(is_valid_regex(regex, 7));
+
+    regex = "[2-8]?";
+    assert(is_valid_regex(regex, 7));
+
+    regex = "a*";
+    assert(is_valid_regex(regex, 3));
+
+    regex = "Ja mes";
+    assert(is_valid_regex(regex, 7));
+
+    regex = "[A - z]";
+    assert(!is_valid_regex(regex, 8));
+
+    regex = "A-z]";
+    assert(!is_valid_regex(regex, 5));
+
+    regex = "[1-j]";
+    assert(!is_valid_regex(regex, 6));
+}
+
+void check_char_range_equality(regex_char_range first_range, regex_char_range second_range) {
+    assert(first_range.min_accetable_char == second_range.min_accetable_char);
+    assert(first_range.max_accetable_char == second_range.max_accetable_char);
+    assert(first_range.is_alphabetical == second_range.is_alphabetical);
+    assert(first_range.is_case_sensative == second_range.is_case_sensative);
+}
+
+void test_get_next_acceptable_chars(){
+    char* regex = "[A-j]";
+    regex_char_range result = get_next_acceptable_chars(regex, 6);
+    regex_char_range expected_result = {
+        .min_accetable_char = 'a',
+        .max_accetable_char = 'j',
+        .is_alphabetical = true,
+        .is_case_sensative = false,
+    };
+    check_char_range_equality(result, expected_result);
+
+    regex = "[J-M]?";
+    result = get_next_acceptable_chars(regex, 6);
+    expected_result = (regex_char_range){
+        .min_accetable_char = 'J',
+        .max_accetable_char = 'M',
+        .is_alphabetical = true,
+        .is_case_sensative = true,
+    };
+    check_char_range_equality(result, expected_result);
+
+    regex = "[2-5]*";
+    result = get_next_acceptable_chars(regex, 6);
+    expected_result = (regex_char_range){
+        .min_accetable_char = '2',
+        .max_accetable_char = '5',
+        .is_alphabetical = false,
+        .is_case_sensative = false,
+    };
+    check_char_range_equality(result, expected_result);
+
+    regex = "a";
+    result = get_next_acceptable_chars(regex, 6);
+    expected_result = (regex_char_range){
+        .min_accetable_char = 'a',
+        .max_accetable_char = 'a',
+        .is_alphabetical = true,
+        .is_case_sensative = true,
+    };
+    check_char_range_equality(result, expected_result);
+
+
+
+}
+
 int main(){
  test_search_text();
  test_replace_text();
+ test_is_valid_regex();
+ test_get_next_acceptable_chars();
 }

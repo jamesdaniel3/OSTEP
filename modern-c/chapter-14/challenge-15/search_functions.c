@@ -12,9 +12,21 @@
 - Extend query-replace with grouping?
 */
 
+/*
+Note: Regex Parsing could spiral into a much larger scope than I think is intended with this challenge involving a 
+grammer and an AST and all that good stuff. Would be really cool to do in the future but I think out of scope at the 
+moment. 
+
+I am just going to handle a few basic things. 
+
+*/
+
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <stdbool.h>
+#include "search_functions.h"
 
 int search_text(char const* text_to_search, size_t text_size, char const* target, size_t target_size) {
     if (text_to_search == NULL || target == NULL) {
@@ -41,7 +53,7 @@ int search_text(char const* text_to_search, size_t text_size, char const* target
 // Find and replace a word in a string
     // By replace I mean return a pointer to a modified copy of the string 
     // if the word is not in the string, return a pointer to the original string
-char * replace_text(
+char* replace_text(
     char const* original_string, size_t original_string_size,
     char const* text_to_replace, size_t text_to_replace_size,
     char const* new_text, size_t new_text_size
@@ -101,4 +113,106 @@ char * replace_text(
     }
 
     return result;
+}
+
+bool is_valid_regex(char const* regex, size_t regex_size){
+    /*
+    This is not a great approach to this check but for the current simple set of regex operations it works 
+    */
+    size_t current_index = 0;
+
+    while (current_index < regex_size) {
+        if (regex[current_index] == ']') {
+            return false;
+        }
+
+        if (regex[current_index] == '[') {
+            if (current_index + 4 >= regex_size) {
+                return false;
+            }
+
+            if (regex[current_index + 2] != '-') {
+                return false;
+            }
+
+            if (regex[current_index + 4] != ']') {
+                return false;
+            }
+
+            char first_val = regex[current_index + 1];
+            char second_val = regex[current_index + 3];
+
+            if (!isalnum(first_val) || !isalnum(second_val)) {
+                return false;
+            }
+
+            if (isdigit(first_val) != isdigit(second_val)) {
+                return false;
+            }
+
+            current_index += 5;
+        }
+
+        current_index++;
+    }
+
+    return true;
+}
+
+// This function assumes it is receiving valid regex 
+regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size){
+    regex_char_range result = {
+        .min_accetable_char = 0,
+        .max_accetable_char = 0,
+        .is_alphabetical = false,
+        .is_case_sensative = false,
+    };
+
+    if (regex[0] != '[') {
+        result.min_accetable_char = regex[0];
+        result.max_accetable_char = regex[0];
+
+        // these won't be super applicable in this case
+        result.is_case_sensative = true; 
+        result.is_alphabetical = isalpha(regex[0]);
+
+        return result;
+    }
+
+    if (isdigit(regex[1])) {
+        result.min_accetable_char = regex[1];
+        result.max_accetable_char = regex[3];
+        result.is_alphabetical = false;
+        result.is_case_sensative = false;
+
+        return result;
+    }
+
+    result.is_alphabetical = true;
+    result.is_case_sensative = islower(regex[1]) == islower(regex[3]);
+
+    if (result.is_case_sensative) {
+        result.min_accetable_char = regex[1];
+        result.max_accetable_char = regex[3];
+
+        return result;
+    }
+
+    result.min_accetable_char = tolower(regex[1]);
+    result.max_accetable_char = tolower(regex[3]);
+
+    return result;
+
+}
+
+int search_text_regex(
+    char const* text_to_search, size_t text_size, 
+    char const* regex, size_t regex_size
+) {
+    // call is_valid_regex and throw if not 
+    // get possible chars
+    // compare current char to possible chars 
+
+    // shift char pointer and regex pointer and call
+    // shift only char pointer and call if the regex was followed by a * or + 
 }
