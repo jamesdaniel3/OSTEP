@@ -5,7 +5,7 @@
 - X Can you replace a word in a string and return a copy with the new contents?
 - Can you implement some regular expression-matching functions for strings? 
   For example, find a character class such as [A-Q] or [^0-9] and match with * or ?.
-- Can you implement a reglar expression-matching function for POSIX character classes such as [[:alpha]], [[:digit]], and so on?
+- X Can you implement a reglar expression-matching function for POSIX character classes such as [[:alpha]], [[:digit]], and so on?
 - Can you stitch all of these functionalities together to search for a regexp in a string?
 - Do query-replace with regexp against a specific word?
 - Extend a regexp with grouping?
@@ -118,6 +118,7 @@ char* replace_text(
 bool is_valid_regex(char const* regex, size_t regex_size){
     /*
     This is not a great approach to this check but for the current simple set of regex operations it works 
+    I am trying to avoid writing a regex parser just for this challenge
     */
     size_t current_index = 0;
 
@@ -125,10 +126,23 @@ bool is_valid_regex(char const* regex, size_t regex_size){
         if (regex[current_index] == ']') {
             return false;
         }
-
+        
         if (regex[current_index] == '[') {
             if (current_index + 4 >= regex_size) {
                 return false;
+            }
+
+            if (regex[current_index + 1] == '[') {
+                if (
+                    strncmp(&regex[current_index], "[[:alpha]]", 10) == 0 || 
+                    strncmp(&regex[current_index], "[[:digit]]", 10) == 0
+                ) {
+                    current_index += 10;
+                    continue;
+                }
+                else {
+                    return false;
+                }
             }
 
             if (regex[current_index + 2] != '-') {
@@ -175,6 +189,24 @@ regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size)
         // these won't be super applicable in this case
         result.is_case_sensative = true; 
         result.is_alphabetical = isalpha(regex[0]);
+
+        return result;
+    }
+
+    if (strncmp(regex, "[[:alpha]]", 10) == 0) {
+        result.min_accetable_char = 'a';
+        result.max_accetable_char = 'z';
+        result.is_alphabetical = true;
+        result.is_case_sensative = false;
+
+        return result;
+    }
+
+    if (strncmp(regex, "[[:digit]]", 10) == 0) {
+        result.min_accetable_char = '0';
+        result.max_accetable_char = '9';
+        result.is_alphabetical = false;
+        result.is_case_sensative = false;
 
         return result;
     }

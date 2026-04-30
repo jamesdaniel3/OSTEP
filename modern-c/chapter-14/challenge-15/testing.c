@@ -76,6 +76,12 @@ void test_is_valid_regex(){
     regex = "Ja mes";
     assert(is_valid_regex(regex, 7));
 
+    regex = "[[:digit]]";
+    assert(is_valid_regex(regex, 11));
+
+    regex = "[[:alpha]]";
+    assert(is_valid_regex(regex, 11));
+
     regex = "[A - z]";
     assert(!is_valid_regex(regex, 8));
 
@@ -84,6 +90,12 @@ void test_is_valid_regex(){
 
     regex = "[1-j]";
     assert(!is_valid_regex(regex, 6));
+
+    regex = "[[";
+    assert(!is_valid_regex(regex, 3));
+
+    regex = "[]";
+    assert(!is_valid_regex(regex, 3));
 }
 
 void check_char_range_equality(regex_char_range first_range, regex_char_range second_range) {
@@ -134,8 +146,25 @@ void test_get_next_acceptable_chars(){
     };
     check_char_range_equality(result, expected_result);
 
+    regex = "[[:digit]]";
+    result = get_next_acceptable_chars(regex, 11);
+    expected_result = (regex_char_range){
+        .min_accetable_char = '0',
+        .max_accetable_char = '9',
+        .is_alphabetical = false,
+        .is_case_sensative = false,
+    };
+    check_char_range_equality(result, expected_result);
 
-
+    regex = "[[:alpha]]";
+    result = get_next_acceptable_chars(regex, 11);
+    expected_result = (regex_char_range){
+        .min_accetable_char = 'a',
+        .max_accetable_char = 'z',
+        .is_alphabetical = true,
+        .is_case_sensative = false,
+    };
+    check_char_range_equality(result, expected_result);
 }
 
 int main(){
