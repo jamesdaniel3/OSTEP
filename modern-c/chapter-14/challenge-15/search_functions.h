@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdbool.h>
+#include "regex.h"
 
 int search_text(char const* text_to_search, size_t text_size, char const* target, size_t target_size);
 
@@ -9,24 +10,15 @@ char * replace_text(
     char const* new_text, size_t new_text_size
 );
 
-/*
-These functions could be moved to an internal only header because they really should be private but since this isn't
-real prod code I am juse going to include them here. 
-*/
-
-typedef struct regex_char_range regex_char_range;
-struct regex_char_range {
-    char min_accetable_char;
-    char max_accetable_char;
-    bool is_alphabetical;
-    bool is_case_sensative;
+typedef struct regex_match_list regex_match_list;
+struct regex_match_list{
+    size_t num_matches;
+    size_t capacity;
+    regex_match* matches;
 };
 
-regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size);
-bool is_valid_regex(char const* regex, size_t regex_size);
-
-
-void search_text_regex(
+regex_match_list* search_text_regex(
     char const* text_to_search, size_t text_size, 
-    char const* regex, size_t regex_size
+    char const* regex, size_t regex_size,
+    regex_match_list* result_list
 );

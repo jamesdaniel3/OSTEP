@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "search_functions.h"
 
 void test_search_text(){
@@ -107,7 +108,7 @@ void check_char_range_equality(regex_char_range first_range, regex_char_range se
 
 void test_get_next_acceptable_chars(){
     char* regex = "[A-j]";
-    regex_char_range result = get_next_acceptable_chars(regex, 6);
+    regex_char_range result = get_next_acceptable_chars(regex);
     regex_char_range expected_result = {
         .min_accetable_char = 'a',
         .max_accetable_char = 'j',
@@ -117,7 +118,7 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 
     regex = "[J-M]?";
-    result = get_next_acceptable_chars(regex, 6);
+    result = get_next_acceptable_chars(regex);
     expected_result = (regex_char_range){
         .min_accetable_char = 'J',
         .max_accetable_char = 'M',
@@ -127,7 +128,7 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 
     regex = "[2-5]*";
-    result = get_next_acceptable_chars(regex, 6);
+    result = get_next_acceptable_chars(regex);
     expected_result = (regex_char_range){
         .min_accetable_char = '2',
         .max_accetable_char = '5',
@@ -137,7 +138,7 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 
     regex = "a";
-    result = get_next_acceptable_chars(regex, 6);
+    result = get_next_acceptable_chars(regex);
     expected_result = (regex_char_range){
         .min_accetable_char = 'a',
         .max_accetable_char = 'a',
@@ -147,7 +148,7 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 
     regex = "[[:digit]]";
-    result = get_next_acceptable_chars(regex, 11);
+    result = get_next_acceptable_chars(regex);
     expected_result = (regex_char_range){
         .min_accetable_char = '0',
         .max_accetable_char = '9',
@@ -157,7 +158,7 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 
     regex = "[[:alpha]]";
-    result = get_next_acceptable_chars(regex, 11);
+    result = get_next_acceptable_chars(regex);
     expected_result = (regex_char_range){
         .min_accetable_char = 'a',
         .max_accetable_char = 'z',
@@ -167,13 +168,28 @@ void test_get_next_acceptable_chars(){
     check_char_range_equality(result, expected_result);
 }
 
+void print_results(regex_match_list results) {
+    for (size_t i = 0; i < results.num_matches; i++) {
+        printf("Match: %s\n", results.matches[i].text);
+    }
+}
+
+void test_regex_search(){
+    regex_match_list result_list = {
+        .num_matches = 0,
+        .capacity = 10,
+        .matches = calloc(sizeof(regex_match), 10)
+    };
+
+    search_text_regex("color and colour", 17, "colou?r", 8, &result_list);
+    print_results(result_list);
+}
+
 int main(){
  test_search_text();
  test_replace_text();
  test_is_valid_regex();
  test_get_next_acceptable_chars();
+ test_regex_search();
 
- // some tests
-
- search_text_regex("color and colour", 17, "colou?r", 8);
 }
