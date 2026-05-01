@@ -175,6 +175,7 @@ match_position_info get_regex_match(
     regex_char_range valid_char_range = get_next_acceptable_chars(regex);
     size_t regex_token_size = get_next_regex_token_size(regex);
     char next_char = text_to_search[current_text_index];
+    char prev_char = current_text_index > 0 ? text_to_search[current_text_index - 1] : 0;
 
     if (
         valid_char_range.is_alphabetical && 
@@ -182,6 +183,7 @@ match_position_info get_regex_match(
         isalpha(next_char)
     ) {
         next_char = tolower(next_char);
+        prev_char = tolower(prev_char);
     }
 
     if (
@@ -193,6 +195,20 @@ match_position_info get_regex_match(
                 regex[regex_token_size] == '*' || 
                 regex[regex_token_size] == '?'
             )
+        ) {
+            return get_regex_match(
+                text_to_search, text_size,
+                regex + (regex_token_size + 1), regex_size - (regex_token_size + 1),
+                current_result_start, current_text_index
+            );
+        }
+
+        if (
+            regex_token_size + 1 < regex_size && 
+            regex[regex_token_size] == '+' && 
+            current_text_index > 0 && 
+            prev_char <= valid_char_range.max_accetable_char &&
+            prev_char >= valid_char_range.min_accetable_char
         ) {
             return get_regex_match(
                 text_to_search, text_size,
