@@ -24,3 +24,9 @@ struct regex_char_range {
 
 regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size);
 bool is_valid_regex(char const* regex, size_t regex_size);
+
+
+void search_text_regex(
+    char const* text_to_search, size_t text_size, 
+    char const* regex, size_t regex_size
+);

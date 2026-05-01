@@ -172,4 +172,8 @@ int main(){
  test_replace_text();
  test_is_valid_regex();
  test_get_next_acceptable_chars();
+
+ // some tests
+
+ search_text_regex("color and colour", 17, "colou?r", 8);
 }

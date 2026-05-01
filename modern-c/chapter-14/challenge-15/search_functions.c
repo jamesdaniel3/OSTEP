@@ -3,10 +3,10 @@
 /*
 - X Can you search for a given word in a string?
 - X Can you replace a word in a string and return a copy with the new contents?
-- Can you implement some regular expression-matching functions for strings? 
+- X Can you implement some regular expression-matching functions for strings? 
   For example, find a character class such as [A-Q] or [^0-9] and match with * or ?.
 - X Can you implement a reglar expression-matching function for POSIX character classes such as [[:alpha]], [[:digit]], and so on?
-- Can you stitch all of these functionalities together to search for a regexp in a string?
+- X Can you stitch all of these functionalities together to search for a regexp in a string?
 - Do query-replace with regexp against a specific word?
 - Extend a regexp with grouping?
 - Extend query-replace with grouping?
@@ -26,6 +26,8 @@ I am just going to handle a few basic things.
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <limits.h>
+#include <stdio.h>
 #include "search_functions.h"
 
 int search_text(char const* text_to_search, size_t text_size, char const* target, size_t target_size) {
@@ -175,12 +177,18 @@ bool is_valid_regex(char const* regex, size_t regex_size){
 
 // This function assumes it is receiving valid regex 
 regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size){
+    // fix unsued var 
     regex_char_range result = {
         .min_accetable_char = 0,
         .max_accetable_char = 0,
         .is_alphabetical = false,
         .is_case_sensative = false,
     };
+
+    if (regex[0] == '*') {
+        result.max_accetable_char = CHAR_MAX;
+        return result;
+    }
 
     if (regex[0] != '[') {
         result.min_accetable_char = regex[0];
@@ -234,17 +242,191 @@ regex_char_range get_next_acceptable_chars(char const* regex, size_t regex_size)
     result.max_accetable_char = tolower(regex[3]);
 
     return result;
-
 }
 
-int search_text_regex(
+// This function assumes it is receiving valid regex 
+size_t get_next_regex_token_size(char const* regex){
+    if (regex[0] != '[') {
+        return 1;
+    }
+
+    if (
+        strncmp(regex, "[[:alpha]]", 10) == 0 ||
+        strncmp(regex, "[[:digit]]", 10) == 0
+    ) {
+        return 10;
+    }
+
+    return 5;
+}
+
+typedef struct regex_match regex_match;
+struct regex_match {
+    size_t length;
+    char* text;
+};
+
+typedef struct match_position_info match_position_info;
+struct match_position_info {
+    size_t length;
+    size_t starting_index;
+};
+
+typedef struct regex_match_list regex_match_list;
+struct regex_match_list{
+    size_t num_matches;
+    size_t capacity;
+    regex_match* matches;
+};
+
+match_position_info get_regex_match(
+    char const* text_to_search, size_t text_size, 
+    char const* regex, size_t regex_size,
+    size_t current_result_start, size_t current_text_index
+){
+    if (regex_size == 1 || current_text_index == text_size - 1) {
+        if (current_result_start == current_text_index) {
+            match_position_info no_match = {
+                .starting_index = 0,
+                .length = 0
+            };
+
+            return no_match;
+        }
+
+        match_position_info match = {
+            .starting_index = current_result_start,
+            .length = current_text_index - current_result_start
+        };
+        
+        return match;
+    }
+
+    // get valid character range 
+    regex_char_range valid_char_range = get_next_acceptable_chars(regex, regex_size);
+    size_t regex_token_size = get_next_regex_token_size(regex);
+    char next_char = text_to_search[current_text_index];
+
+    if (
+        valid_char_range.is_alphabetical && 
+        !valid_char_range.is_case_sensative &&
+        isalpha(next_char)
+    ) {
+        next_char = tolower(next_char);
+    }
+
+    if (
+        next_char > valid_char_range.max_accetable_char ||
+        next_char < valid_char_range.min_accetable_char
+    ) {
+        if (regex_token_size + 1 < regex_size && 
+            (
+                regex[regex_token_size] == '*' || 
+                regex[regex_token_size] == '?'
+            )
+        ) {
+            return get_regex_match(
+                text_to_search, text_size,
+                regex + (regex_token_size + 1), regex_size - (regex_token_size + 1),
+                current_result_start, current_text_index
+            );
+        }
+
+        match_position_info no_match = {
+            .starting_index = 0,
+            .length = 0
+        };
+
+        return no_match;
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[regex_token_size] == '+') {
+        return get_regex_match(
+            text_to_search, text_size,
+            regex, regex_size,
+            current_result_start, current_text_index + 1
+        );
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[regex_token_size] == '*') {
+        return get_regex_match(
+            text_to_search, text_size,
+            regex, regex_size,
+            current_result_start, current_text_index + 1
+        );
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[regex_token_size] == '?') {
+        return get_regex_match(
+            text_to_search, text_size,
+            regex + (regex_token_size + 1), regex_size - (regex_token_size + 1),
+            current_result_start, current_text_index + 1
+        );
+    }
+
+    return get_regex_match(
+        text_to_search, text_size,
+        regex + regex_token_size, regex_size - regex_token_size,
+        current_result_start, current_text_index + 1
+    );
+}
+
+void print_results(regex_match_list results) {
+    for (size_t i = 0; i < results.num_matches; i++) {
+        printf("Match: %s\n", results.matches[i].text);
+    }
+}
+
+void search_text_regex(
     char const* text_to_search, size_t text_size, 
     char const* regex, size_t regex_size
 ) {
     // call is_valid_regex and throw if not 
-    // get possible chars
-    // compare current char to possible chars 
+    if (!is_valid_regex(regex, regex_size)) {
+        return;
+    }
 
-    // shift char pointer and regex pointer and call
-    // shift only char pointer and call if the regex was followed by a * or + 
+    regex_match_list result_list = {
+        .num_matches = 0,
+        .capacity = 10,
+        .matches = calloc(sizeof(regex_match), 10)
+    };
+
+    size_t starting_index = 0;
+
+    while (starting_index < text_size) {
+        match_position_info new_match = get_regex_match(
+            text_to_search, text_size, 
+            regex, regex_size,
+            starting_index, starting_index
+        );
+
+        if (new_match.length == 0) {
+            starting_index++;
+            continue;
+        }
+        starting_index += new_match.length;
+
+        char* match = calloc(new_match.length, 1); // need to check for failure
+        memcpy(match, text_to_search + new_match.starting_index, new_match.length);
+
+        regex_match result = {
+            .length = new_match.length,
+            .text = match
+        };
+
+        if (
+            result_list.num_matches >= result_list.capacity - 5 ||
+            result_list.num_matches >= result_list.capacity * .8
+        ) {
+            result_list.matches = realloc(result_list.matches, 2*result_list.capacity*sizeof(regex_match)); // check for failure
+            result_list.capacity *= 2;
+        }
+
+        result_list.matches[result_list.num_matches] = result;
+        result_list.num_matches += 1;
+    }
+
+
+    print_results(result_list);
 }
