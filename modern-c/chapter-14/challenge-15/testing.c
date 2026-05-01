@@ -174,6 +174,28 @@ void print_results(regex_match_list results) {
     }
 }
 
+void check_search_regex_results(
+    regex_match_list regex_matches, 
+    const char** expected_matches, 
+    size_t num_expected_matches
+){
+    assert(num_expected_matches == regex_matches.num_matches);
+
+    for(size_t i = 0; i < num_expected_matches; i++) {
+        const char* expected_match = expected_matches[i];
+        const char* found_match = regex_matches.matches[i].text;
+        size_t found_match_len = regex_matches.matches[i].length;
+        assert(strncmp(expected_match, found_match, found_match_len) == 0);
+    }
+}
+
+void reset_results(regex_match_list* matches) {
+    free(matches->matches);
+    matches->num_matches = 0;
+    matches->capacity = 10;
+    matches->matches = calloc(sizeof(regex_match), 10);
+}
+
 void test_regex_search(){
     regex_match_list result_list = {
         .num_matches = 0,
@@ -181,8 +203,15 @@ void test_regex_search(){
         .matches = calloc(sizeof(regex_match), 10)
     };
 
+    // Test Question Mark Operator
     search_text_regex("color and colour", 17, "colou?r", 8, &result_list);
-    print_results(result_list);
+    check_search_regex_results(result_list, (const char*[]){"color", "colour"}, 2);
+    reset_results(&result_list);
+
+    // Test isalpha posix
+    search_text_regex("h3LLo", 6, "9*[[:alpha]]+", 14, &result_list);
+    check_search_regex_results(result_list, (const char*[]){"h", "LLo"}, 2);
+    reset_results(&result_list);
 }
 
 int main(){
