@@ -7,7 +7,7 @@
   For example, find a character class such as [A-Q] or [^0-9] and match with * or ?.
 - X Can you implement a reglar expression-matching function for POSIX character classes such as [[:alpha]], [[:digit]], and so on?
 - X Can you stitch all of these functionalities together to search for a regexp in a string?
-- Do query-replace with regexp against a specific word?
+- X Do query-replace with regexp against a specific word?
 - Extend a regexp with grouping?
 - Extend query-replace with grouping?
 
@@ -33,9 +33,6 @@ I am just going to handle a few basic things.
 #include <stddef.h>
 #include <stdlib.h>
 #include "search_functions.h"
-
-
-#include <stdio.h>
 
 int search_text(char const* text_to_search, size_t text_size, char const* target, size_t target_size) {
     if (text_to_search == NULL || target == NULL) {
@@ -178,12 +175,7 @@ regex_match_list* search_text_regex(
             continue;
         }
 
-        // printf("Match Starting Position: %zu\n", new_match.starting_index);
-        // printf("Match Length: %zu\n-------------\n", new_match.length);
-
-        // printf("Match found: %.*s", new_match.length, text_to_search[new_match.starting_index]);
-
-        starting_index += new_match.length; // does length not include the null temrinator?
+        starting_index += new_match.length;
 
         int error = update_match_list(result_list, new_match, text_to_search);
 
@@ -244,12 +236,6 @@ char* replace_text_regex(
 
         size_t chars_to_copy = new_match.starting_index - last_copied_index;
 
-        // printf("Buffer Size: %zu\n", new_string_size);
-        // printf("Chars to copy %zu\n", chars_to_copy);
-        // printf("Current result index %zu\n", current_result_index);
-        // printf("Last copied index %zu\n", last_copied_index);
-        // printf("New Text Size: %zu\n", new_text_size);
-
         //copy from last copied index to the result 
         memcpy(
             result + current_result_index, 
@@ -270,10 +256,6 @@ char* replace_text_regex(
         current_result_index += (chars_to_copy + new_text_size - 1);
     }
 
-    // printf("Last Copied Index: %zu\n", last_copied_index);
-    // printf("Current Result Index: %zu\n", current_result_index);
-    // printf("Temp: %s\n", original_string + last_copied_index);
-
     // copy from last copied index to end of string 
     if (last_copied_index < original_string_size - 1) {
         memcpy(
@@ -282,8 +264,6 @@ char* replace_text_regex(
             original_string_size - last_copied_index - 1
         );
     }
-
-    // printf("Result: %.12s\n", result);
 
     return result;
 }

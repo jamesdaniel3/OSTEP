@@ -225,10 +225,29 @@ void test_regex_replace() {
     new_string = replace_text_regex(original_string, 12, regex, 7, replacement, 4);
     assert(strcmp(new_string, "000XXX00XXX") == 0);
 
+    // replace with an empty string (delete)
     regex = "[[:digit]]";
     replacement = "";
     new_string = replace_text_regex(original_string, 12, regex, 11, replacement, 1);
     assert(strcmp(new_string, "abcdab") == 0);
+
+    // handle regex not found (return identical string)
+    regex = "33";
+    new_string = replace_text_regex(original_string, 12, regex, 3, replacement, 5);
+    assert(strcmp(new_string, original_string) == 0);
+
+    // handle empty regex (return identical string)
+    regex = "";
+    replacement = "123";
+    new_string = replace_text_regex(original_string, 12, regex, 1, replacement, 4);
+    assert(strcmp(new_string, original_string) == 0);
+
+    // handle empty original text (return identical string)
+    original_string = "";
+    regex = "l";
+    replacement = "123";
+    new_string = replace_text_regex(original_string, 1, regex, 2, replacement, 4);
+    assert(strcmp(new_string, original_string) == 0);
 }
 
 int main(){
