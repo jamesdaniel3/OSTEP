@@ -11,23 +11,12 @@
 - Extend a regexp with grouping?
 - Extend query-replace with grouping?
 
+Leaving this work here... I have run out of energy for this challenge while trying to figure out grouping and I want to move on in the textbook
 
-TODO:
-- improve testing 
-- Do query-replace with regexp against a specific word?
-- Extend a regexp with grouping?
-- Extend query-replace with grouping?
-- add ^ 
+This is a really cool resource on Regex that I found while trying to figure this problem out:
+- https://swtch.com/~rsc/regexp/regexp1.html
 */
 
-/*
-Note: Regex Parsing could spiral into a much larger scope than I think is intended with this challenge involving a 
-grammer and an AST and all that good stuff. Would be really cool to do in the future but I think out of scope at the 
-moment. 
-
-I am just going to handle a few basic things. 
-
-*/
 
 #include <string.h>
 #include <stddef.h>
