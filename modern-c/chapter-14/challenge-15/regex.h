@@ -24,7 +24,6 @@ typedef struct regex_char_range regex_char_range;
 struct regex_char_range {
     char min_accetable_char;
     char max_accetable_char;
-    bool is_alphabetical;
     bool is_case_sensative;
 };
 

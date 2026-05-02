@@ -102,7 +102,6 @@ void test_is_valid_regex(){
 void check_char_range_equality(regex_char_range first_range, regex_char_range second_range) {
     assert(first_range.min_accetable_char == second_range.min_accetable_char);
     assert(first_range.max_accetable_char == second_range.max_accetable_char);
-    assert(first_range.is_alphabetical == second_range.is_alphabetical);
     assert(first_range.is_case_sensative == second_range.is_case_sensative);
 }
 
@@ -112,7 +111,6 @@ void test_get_next_acceptable_chars(){
     regex_char_range expected_result = {
         .min_accetable_char = 'a',
         .max_accetable_char = 'j',
-        .is_alphabetical = true,
         .is_case_sensative = false,
     };
     check_char_range_equality(result, expected_result);
@@ -122,7 +120,6 @@ void test_get_next_acceptable_chars(){
     expected_result = (regex_char_range){
         .min_accetable_char = 'J',
         .max_accetable_char = 'M',
-        .is_alphabetical = true,
         .is_case_sensative = true,
     };
     check_char_range_equality(result, expected_result);
@@ -132,7 +129,6 @@ void test_get_next_acceptable_chars(){
     expected_result = (regex_char_range){
         .min_accetable_char = '2',
         .max_accetable_char = '5',
-        .is_alphabetical = false,
         .is_case_sensative = false,
     };
     check_char_range_equality(result, expected_result);
@@ -142,7 +138,6 @@ void test_get_next_acceptable_chars(){
     expected_result = (regex_char_range){
         .min_accetable_char = 'a',
         .max_accetable_char = 'a',
-        .is_alphabetical = true,
         .is_case_sensative = true,
     };
     check_char_range_equality(result, expected_result);
@@ -152,7 +147,6 @@ void test_get_next_acceptable_chars(){
     expected_result = (regex_char_range){
         .min_accetable_char = '0',
         .max_accetable_char = '9',
-        .is_alphabetical = false,
         .is_case_sensative = false,
     };
     check_char_range_equality(result, expected_result);
@@ -162,7 +156,6 @@ void test_get_next_acceptable_chars(){
     expected_result = (regex_char_range){
         .min_accetable_char = 'a',
         .max_accetable_char = 'z',
-        .is_alphabetical = true,
         .is_case_sensative = false,
     };
     check_char_range_equality(result, expected_result);
@@ -212,13 +205,37 @@ void test_regex_search(){
     search_text_regex("h3LLo", 6, "9*[[:alpha]]+", 14, &result_list);
     check_search_regex_results(result_list, (const char*[]){"h", "LLo"}, 2);
     reset_results(&result_list);
+
+    search_text_regex("000abcd00ab", 12, "[[:digit]]", 11, &result_list);
+    check_search_regex_results(result_list, (const char*[]){"0", "0", "0", "0", "0"}, 5);
+
+    free(result_list.matches);
+}
+
+void test_regex_replace() {
+    char* original_string = "color and colours";
+    char* regex = "colou?r";
+    char* replacement = "color";
+    char* new_string = replace_text_regex(original_string, 18, regex, 8, replacement, 6);
+    assert(strcmp(new_string, "color and colors") == 0);
+
+    original_string = "000abcd00ab";
+    regex = "[A-z]*";
+    replacement = "XXX";
+    new_string = replace_text_regex(original_string, 12, regex, 7, replacement, 4);
+    assert(strcmp(new_string, "000XXX00XXX") == 0);
+
+    regex = "[[:digit]]";
+    replacement = "";
+    new_string = replace_text_regex(original_string, 12, regex, 11, replacement, 1);
+    assert(strcmp(new_string, "abcdab") == 0);
 }
 
 int main(){
- test_search_text();
- test_replace_text();
- test_is_valid_regex();
- test_get_next_acceptable_chars();
- test_regex_search();
-
+    test_search_text();
+    test_replace_text();
+    test_is_valid_regex();
+    test_get_next_acceptable_chars();
+    test_regex_search();
+    test_regex_replace();
 }

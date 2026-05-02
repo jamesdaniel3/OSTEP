@@ -22,3 +22,9 @@ regex_match_list* search_text_regex(
     char const* regex, size_t regex_size,
     regex_match_list* result_list
 );
+
+char* replace_text_regex(
+    char const* original_string, size_t original_string_size,
+    char const* regex, size_t regex_size,
+    char const* new_text, size_t new_text_size
+);

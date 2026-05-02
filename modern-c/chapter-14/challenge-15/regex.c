@@ -5,6 +5,8 @@
 #include <limits.h>
 #include "regex.h"
 
+#include <stdio.h>
+
 bool is_valid_regex(char const* regex, size_t regex_size){
     /*
     This is not a great approach to this check but for the current simple set of regex operations it works 
@@ -65,6 +67,7 @@ bool is_valid_regex(char const* regex, size_t regex_size){
 
 // This function assumes it is receiving valid regex 
 size_t get_next_regex_token_size(char const* regex){
+    //printf("Regex: %s\n", regex);
     if (regex[0] != '[') {
         return 1;
     }
@@ -84,7 +87,6 @@ regex_char_range get_next_acceptable_chars(char const* regex){
     regex_char_range result = {
         .min_accetable_char = 0,
         .max_accetable_char = 0,
-        .is_alphabetical = false,
         .is_case_sensative = false,
     };
 
@@ -99,7 +101,6 @@ regex_char_range get_next_acceptable_chars(char const* regex){
 
         // these won't be super applicable in this case
         result.is_case_sensative = true; 
-        result.is_alphabetical = isalpha(regex[0]);
 
         return result;
     }
@@ -107,7 +108,6 @@ regex_char_range get_next_acceptable_chars(char const* regex){
     if (strncmp(regex, "[[:alpha]]", 10) == 0) {
         result.min_accetable_char = 'a';
         result.max_accetable_char = 'z';
-        result.is_alphabetical = true;
         result.is_case_sensative = false;
 
         return result;
@@ -116,7 +116,6 @@ regex_char_range get_next_acceptable_chars(char const* regex){
     if (strncmp(regex, "[[:digit]]", 10) == 0) {
         result.min_accetable_char = '0';
         result.max_accetable_char = '9';
-        result.is_alphabetical = false;
         result.is_case_sensative = false;
 
         return result;
@@ -125,13 +124,11 @@ regex_char_range get_next_acceptable_chars(char const* regex){
     if (isdigit(regex[1])) {
         result.min_accetable_char = regex[1];
         result.max_accetable_char = regex[3];
-        result.is_alphabetical = false;
         result.is_case_sensative = false;
 
         return result;
     }
 
-    result.is_alphabetical = true;
     result.is_case_sensative = islower(regex[1]) == islower(regex[3]);
 
     if (result.is_case_sensative) {
@@ -153,7 +150,8 @@ match_position_info get_regex_match(
     char const* regex, size_t regex_size,
     size_t current_result_start, size_t current_text_index
 ){
-    if (regex_size == 1 || current_text_index == text_size - 1) {
+    //printf("Current Text Index: %zu\n", current_text_index);
+    if (regex_size <= 1 || current_text_index == text_size - 1) {
         if (current_result_start == current_text_index) {
             match_position_info no_match = {
                 .starting_index = 0,
@@ -177,10 +175,11 @@ match_position_info get_regex_match(
     char next_char = text_to_search[current_text_index];
     char prev_char = current_text_index > 0 ? text_to_search[current_text_index - 1] : 0;
 
+    // printf("Next Char: %c\n", next_char);
+    // printf("Regex Token: %.*s\n", regex_token_size, regex[regex_token_size]);
+
     if (
-        valid_char_range.is_alphabetical && 
-        !valid_char_range.is_case_sensative &&
-        isalpha(next_char)
+        !valid_char_range.is_case_sensative
     ) {
         next_char = tolower(next_char);
         prev_char = tolower(prev_char);

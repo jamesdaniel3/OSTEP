@@ -10,6 +10,14 @@
 - Do query-replace with regexp against a specific word?
 - Extend a regexp with grouping?
 - Extend query-replace with grouping?
+
+
+TODO:
+- improve testing 
+- Do query-replace with regexp against a specific word?
+- Extend a regexp with grouping?
+- Extend query-replace with grouping?
+- add ^ 
 */
 
 /*
@@ -25,6 +33,9 @@ I am just going to handle a few basic things.
 #include <stddef.h>
 #include <stdlib.h>
 #include "search_functions.h"
+
+
+#include <stdio.h>
 
 int search_text(char const* text_to_search, size_t text_size, char const* target, size_t target_size) {
     if (text_to_search == NULL || target == NULL) {
@@ -166,7 +177,13 @@ regex_match_list* search_text_regex(
             starting_index++;
             continue;
         }
-        starting_index += new_match.length;
+
+        // printf("Match Starting Position: %zu\n", new_match.starting_index);
+        // printf("Match Length: %zu\n-------------\n", new_match.length);
+
+        // printf("Match found: %.*s", new_match.length, text_to_search[new_match.starting_index]);
+
+        starting_index += new_match.length; // does length not include the null temrinator?
 
         int error = update_match_list(result_list, new_match, text_to_search);
 
@@ -177,4 +194,96 @@ regex_match_list* search_text_regex(
     }
 
     return result_list;
+}
+
+char* replace_text_regex(
+    char const* original_string, size_t original_string_size,
+    char const* regex, size_t regex_size,
+    char const* new_text, size_t new_text_size
+) {
+    if (
+        original_string == NULL ||
+        regex == NULL ||
+        new_text == NULL
+    ) {
+        return NULL;
+    }
+
+    if (!is_valid_regex(regex, regex_size)) {
+        return NULL;
+    }
+
+    size_t new_string_size = original_string_size; 
+    char * result = calloc(new_string_size, 1);
+    
+    size_t current_search_index = 0;
+    size_t last_copied_index = 0;
+    size_t current_result_index = 0;
+
+    while (current_search_index < original_string_size) {
+        match_position_info new_match = get_regex_match(
+            original_string, original_string_size, 
+            regex, regex_size,
+            current_search_index, current_search_index
+        );
+
+        if (new_match.length == 0) {
+            current_search_index++;
+            continue;
+        }
+
+        int byte_difference = new_text_size - new_match.length;
+        // printf("Byte Difference: %d\n", byte_difference);
+
+        result = realloc(result, new_string_size + byte_difference);
+        if (!result) {
+            return NULL;
+        }
+
+        new_string_size += byte_difference;
+
+        size_t chars_to_copy = new_match.starting_index - last_copied_index;
+
+        // printf("Buffer Size: %zu\n", new_string_size);
+        // printf("Chars to copy %zu\n", chars_to_copy);
+        // printf("Current result index %zu\n", current_result_index);
+        // printf("Last copied index %zu\n", last_copied_index);
+        // printf("New Text Size: %zu\n", new_text_size);
+
+        //copy from last copied index to the result 
+        memcpy(
+            result + current_result_index, 
+            original_string + last_copied_index, 
+            chars_to_copy
+        );
+
+        // copy in the text     
+        memcpy(
+            result + current_result_index + chars_to_copy,
+            new_text,
+            (new_text_size - 1)
+        );
+
+        // update pointers 
+        last_copied_index = (new_match.starting_index + new_match.length);
+        current_search_index += new_match.length;
+        current_result_index += (chars_to_copy + new_text_size - 1);
+    }
+
+    // printf("Last Copied Index: %zu\n", last_copied_index);
+    // printf("Current Result Index: %zu\n", current_result_index);
+    // printf("Temp: %s\n", original_string + last_copied_index);
+
+    // copy from last copied index to end of string 
+    if (last_copied_index < original_string_size - 1) {
+        memcpy(
+            result + current_result_index, 
+            original_string + last_copied_index, 
+            original_string_size - last_copied_index - 1
+        );
+    }
+
+    // printf("Result: %.12s\n", result);
+
+    return result;
 }
