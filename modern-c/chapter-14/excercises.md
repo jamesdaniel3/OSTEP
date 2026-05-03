@@ -88,3 +88,68 @@ int main(void) {
     return EXIT_SUCCESS;
 }
 ```
+
+## Excercise 2
+
+#### Modify the format string in the example such that it only accepts three numbers on a single line, seperated by blanks, and such that the terminating newline character (eventually preceded by blanks) is skipped 
+
+This is the referenced example:
+
+```c
+double a[3];
+
+if (scanf( " %lg %lg %lg ", &a[0], &a[1], &a[2]) < 3) {
+    printf("Not enought input values!\n");
+}
+```
+
+The updated result is here:
+```c
+double a[3];
+
+if (scanf( "%lg%*[ ]%lg%*[ ]%lg", &a[0], &a[1], &a[2]) < 3) {
+    printf("Not enought input values!\n");
+}
+```
+
+## Excercise 3
+
+#### Write a fucntion `fseekmax` that uses intmax_t instead of long and achieves large seek values by combining calls to fseek
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+#include <limits.h>
+
+int fseekmax(FILE* stream, intmax_t offset, int whence){
+    // move to desired whence once and then use SEEK_CUR so that the pointer doesn't reset every time
+    if (whence != SEEK_CUR) {
+        if (fseek(stream, 0, whence) != 0) {
+            return -1;
+        }
+    }
+
+    intmax_t bytes_to_travel = offset;
+
+    while (bytes_to_travel != 0) {
+        long bytes_this_iteration; 
+        
+        if (bytes_to_travel > 0) {
+            bytes_this_iteration = bytes_to_travel > LONG_MAX ? LONG_MAX : bytes_to_travel;
+        }
+        else {
+            bytes_this_iteration = bytes_to_travel < LONG_MIN ? LONG_MIN : bytes_to_travel;
+        }
+
+        int result = fseek(stream, bytes_this_iteration, SEEK_CUR);
+        
+        if (result == -1) {
+            return result;
+        }
+
+        bytes_to_travel -= bytes_this_iteration;
+    }
+
+    return 0;
+} 
+```
