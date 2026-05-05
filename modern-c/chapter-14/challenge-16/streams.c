@@ -16,7 +16,6 @@ Replace all occurrences of a word with another?
 #define INITIAL_BUFFER_SIZE 20 // this should be larger but we need it to be small at first so that we can test incomplete reads
 
 void handle_count_words(char* input, char** word_list, size_t num_words){
-    printf("Buffer Contents New: %s\n", input);
     for(size_t i = 0; i < num_words; i++) {
         size_t current_index = 0;
         size_t input_length = strlen(input);
@@ -39,6 +38,22 @@ void handle_count_words(char* input, char** word_list, size_t num_words){
 
         fprintf(stderr, "%s: %zu occurrences\n", word_to_find, occurence_count);
     }
+}
+
+void handle_count_regex(char* input, char* regex){
+    regex_match_list matches = {
+        .num_matches = 0,
+        .capacity = 10,
+        .matches = malloc(sizeof(regex_match) * 10)
+    };
+
+    search_text_regex(
+        input, strlen(input),
+        regex, strlen(regex),
+        &matches
+    );
+
+    fprintf(stderr, "%s: %zu matches\n", regex, matches.num_matches);
 }
 
 char* read_next_line(){
@@ -93,6 +108,12 @@ int main(int argc, char* argv[argc]){
 
         if (!count_words && !count_regex) {
             printf("Invalid args. Second argument must be --count-words or --count-regex if provided.\n");
+            exit(1);
+        }
+
+        if (argc == 2) {
+            printf("Invalid args. You must provide a word to search for or a regex string.\n");
+            exit(1);
         }
     }
 
@@ -101,13 +122,10 @@ int main(int argc, char* argv[argc]){
         if (count_words) {
             handle_count_words(buffer, argv + 2, argc - 2);
         }
+        if (count_regex) {
+            handle_count_regex(buffer, argv[2]);
+        }
+
         buffer = read_next_line();
     }
-
-    // convert output
-
-    // dump to stdout
-
-    // send diagnostic for the given line 
-
 }
