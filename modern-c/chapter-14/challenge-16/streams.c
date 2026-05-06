@@ -1,10 +1,10 @@
 /*
 CHALLENGE 16 
 
-For text processing in streams, can you read on stdin, dump modified text on stdout, and report diagnostics on stderr?
-Count the occurences of a list of words? 
-Count the occurences of a regexp?
-Replace all occurrences of a word with another?
+- X For text processing in streams, can you read on stdin, dump modified text on stdout, and report diagnostics on stderr?
+- X Count the occurences of a list of words? 
+- X Count the occurences of a regexp?
+- X Replace all occurrences of a word with another?
 */
 
 #include <stdio.h>
@@ -56,6 +56,20 @@ void handle_count_regex(char* input, char* regex){
     fprintf(stderr, "%s: %zu matches\n", regex, matches.num_matches);
 }
 
+void handle_replace_words(char* input, char* word_to_replace, char* replacement){
+    /*
+    Strlen does not include the null terminator but the replace text function expects it to be 
+    included in the length of the string
+    */
+    char* updated_text = replace_text(
+        input, strlen(input) + 1,
+        word_to_replace, strlen(word_to_replace) + 1,
+        replacement, strlen(replacement) + 1
+    );
+
+    fprintf(stdout, "%s", updated_text);
+}
+
 char* read_next_line(){
     size_t buffer_size = INITIAL_BUFFER_SIZE;
     char* buffer = calloc(buffer_size, 1);
@@ -97,24 +111,31 @@ char* read_next_line(){
 int main(int argc, char* argv[argc]){ 
     bool count_words = false;
     bool count_regex = false;
+    bool replace_word = false;
 
-    if (argc > 1) {
-        if (strncmp(argv[1], "--count-words", 13) == 0) {
-            count_words = true;
-        }
-        if (strncmp(argv[1], "--count-regex", 13) == 0) {
-            count_regex = true;
-        }
+    if (argc < 3) {
+        printf("Invalid args. You must provide a mode and some arguments.\n");
+        exit(1);
+    }
 
-        if (!count_words && !count_regex) {
-            printf("Invalid args. Second argument must be --count-words or --count-regex if provided.\n");
-            exit(1);
-        }
+    if (strncmp(argv[1], "--count-words", 13) == 0) {
+        count_words = true;
+    }
+    if (strncmp(argv[1], "--count-regex", 13) == 0) {
+        count_regex = true;
+    }
+    if (strncmp(argv[1], "--replace-word", 15) == 0) {
+        replace_word = true;
+    }
 
-        if (argc == 2) {
-            printf("Invalid args. You must provide a word to search for or a regex string.\n");
-            exit(1);
-        }
+    if (!count_words && !count_regex && !replace_word) {
+        printf("Invalid args. Second argument must be --count-words or --count-regex if provided.\n");
+        exit(1);
+    }
+
+    if (replace_word && argc != 4) {
+        printf("Invalid args. Replace mode expects a word to find and a replacement.\n");
+        exit(1);
     }
 
     char* buffer = read_next_line();
@@ -124,6 +145,9 @@ int main(int argc, char* argv[argc]){
         }
         if (count_regex) {
             handle_count_regex(buffer, argv[2]);
+        }
+        if(replace_word) {
+            handle_replace_words(buffer, argv[2], argv[3]);
         }
 
         buffer = read_next_line();

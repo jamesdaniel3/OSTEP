@@ -39,7 +39,15 @@ void test_replace_text() {
     new_string = replace_text(original_string, 12, text_to_replace, 2, replacement, 4);
     assert(strcmp(new_string, "he123123o wor123d") == 0);
 
+    // another example of replacement 
+    original_string = "My name is james.";
+    text_to_replace = "james";
+    replacement = "jack";
+    new_string = replace_text(original_string, 18, text_to_replace, 6, replacement, 5);
+    assert(strcmp(new_string, "My name is jack.") == 0);
+
     // replace with an empty string (delete)
+    original_string = "hello world";
     text_to_replace = "l";
     replacement = "";
     new_string = replace_text(original_string, 12, text_to_replace, 2, replacement, 1);
