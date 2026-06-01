@@ -6,4 +6,4 @@ enum {
 } COMMAND_RESULTS;
 
 int evaluate_command(char command[static 1]);
-void insert_character_into_command(char command[static 1], size_t* current_location, int new_char);
+void insert_character_into_command(char command[static 1], size_t* current_location, size_t* current_size, int new_char);
