@@ -5,10 +5,16 @@ Goal: extend challenge 12 to create a super basic text processor with the follow
 - allow for insert and edit modes like vim, save users changes when the session ends 
 - support vim motions h, j, k, l, H, M, L, w, e, b, 0, dd
 
-Note: There are a ton of problems with this implementation. It doesn't support UTF-8 and has many bugs; but I just wanted to finish 
-a semi-working version and I have to move on to other projects at some point so I am leaving it in it's current state unless I find 
-particularly glaring bugs or I find time to keep working on it. 
+Note: There are a ton of problems with this implementation. 
 
+
+TODO:
+- make it so that users can type UTF-8 chars into the command bar 
+- add tests for search functions that were rewritten 
+- implement find and replace (ensure it supports UTF-8)
+- searching back to back seems broken
+- turn the buffer into a struct that keeps track of all the relevant vars 
+- check search erroring logic
 */
 
 #include <stddef.h>
@@ -29,8 +35,13 @@ particularly glaring bugs or I find time to keep working on it.
 #include "command.h"
 #include "file_operations.h"
 #include "mbstrings.h"
+#include "regex.h"
 
-#define COMMAND_ARR_SIZE 10
+#define COMMAND_ARR_SIZE 102
+enum {
+    ERROR_COLORS = 1,
+    HIGHLIGHT_COLORS = 2,
+} COLOR_PALLETES;
 
 enum {
   NORMAL,
@@ -54,9 +65,18 @@ void cleanup_ncurses(){
     endwin();
 }
 
-void print_multibyte_string(text_blob* current_line, size_t current_row){
+void print_multibyte_string(
+    text_blob* current_line, size_t current_row, 
+    bool highlight_matches, char* search_query, size_t query_size
+){
     mbstate_t state = { };
     size_t next_cursor_position = 0;
+    match_position_info next_search_result = {};
+
+    if (highlight_matches) {
+        next_search_result = get_regex_match(current_line->text, current_line->text_size, search_query, query_size);
+    }
+
     for (char* current_char_pointer = current_line->text; *current_char_pointer;){
         size_t const max_possible_bytes = current_line->text_size - (current_char_pointer - current_line->text);
         wchar_t wide_char;
@@ -77,9 +97,27 @@ void print_multibyte_string(text_blob* current_line, size_t current_row){
         cchar_t ch;
         wchar_t wstr[] = { wide_char, L'\0' };
 
+        if(
+            highlight_matches && 
+            next_search_result.length != 0 && 
+            next_cursor_position >= next_search_result.starting_index &&
+            next_cursor_position < next_search_result.starting_index + next_search_result.length
+        ) {
+            attron(COLOR_PAIR(HIGHLIGHT_COLORS));
+        }
         setcchar(&ch, wstr, 0, 0, NULL);
         mvadd_wch(current_row, next_cursor_position, &ch);
         next_cursor_position++;
+        attroff(COLOR_PAIR(HIGHLIGHT_COLORS));
+
+        if (
+            highlight_matches && 
+            next_search_result.length != 0 && 
+            next_cursor_position >= next_search_result.starting_index + next_search_result.length
+        ) {
+            next_search_result = get_regex_match(current_line->text + next_cursor_position, current_line->text_size - next_cursor_position, search_query, query_size);
+            next_search_result.starting_index += next_cursor_position;
+        }
 
         current_char_pointer += bytes_in_wide_char;
     }
@@ -93,11 +131,20 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
     keypad(stdscr, TRUE); // necessary to allow for reading in inputs like arrow keys
     use_default_colors(); // use the default colors that are being used in the current terminal
     start_color(); // allow for color output
-    init_pair(1, COLOR_WHITE, COLOR_RED);
+    init_pair(ERROR_COLORS, COLOR_WHITE, COLOR_RED);
+    init_pair(HIGHLIGHT_COLORS, COLOR_MAGENTA, COLOR_GREEN);
 
     bool command_started = false;
     bool command_errored = false;
-    char error_message[125] = "Invalid Command: ";
+    char command[COMMAND_ARR_SIZE] = {0}; 
+    size_t current_command_index = 0;
+    size_t current_command_size = 0;
+    char command_error_message[125] = "Invalid Command: ";
+
+    bool search_started = false;
+    bool search_errorred = false;
+    bool show_search_results = false;
+    char search_error_message[125] = "Invalid Expression: ";
 
     int max_row, max_col;
     getmaxyx(stdscr, max_row, max_col);
@@ -106,9 +153,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
     int cursor_row = 0;
     text_blob* cursor_row_text_object;
     size_t cursor_row_char_index = 0;
-    char command[COMMAND_ARR_SIZE] = {0}; 
-    size_t current_command_index = 0;
-    size_t current_command_size = 0;
+
     char normal_mode_prefix = 0; 
 
     while (true) {
@@ -122,7 +167,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
         int current_row = 0;
 
         while (iterator != NULL && current_row < max_row - 1) {
-            print_multibyte_string(iterator, current_row);
+            print_multibyte_string(iterator, current_row, show_search_results, command + 1, current_command_size - 1);
             if (current_row == cursor_row) {
                 cursor_row_text_object = iterator;
             }
@@ -133,58 +178,92 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
 
         move(cursor_row, cursor_row_char_index); 
 
-        if (command_started) {
+        if (command_started || search_started) {
             mvprintw(max_row - 1, 0, "%s", command);
             move(max_row - 1, current_command_index); 
         }
 
         if (command_errored) {
-            attron(COLOR_PAIR(1));
-            mvprintw(max_row - 1, 0, "%s", error_message);
-            attroff(COLOR_PAIR(1));
+            attron(COLOR_PAIR(ERROR_COLORS));
+            mvprintw(max_row - 1, 0, "%s", command_error_message);
+            attroff(COLOR_PAIR(ERROR_COLORS));
+        }
+        else if (search_errorred) {
+            attron(COLOR_PAIR(ERROR_COLORS));
+            mvprintw(max_row - 1, 0, "%s", search_error_message);
+            attroff(COLOR_PAIR(ERROR_COLORS));
         }
 
         refresh();
 
         int user_input = getch();
-        bool user_entered_backspace = user_input == KEY_DC || user_input == KEY_BACKSPACE || user_input == 127 || user_input == '\b';
+
         // the many different values of backspace 
+        bool user_entered_backspace = user_input == KEY_DC || user_input == KEY_BACKSPACE || user_input == 127 || user_input == '\b';
         // Note: Delete and backspace are different things, but my macbook only has a Delete key so I am choosing to treat them as the same 
 
         if (mode == NORMAL){
+            if (show_search_results) {
+                search_started = false;
+                show_search_results = false;
+                current_command_index = 0;
+                memset(command, 0, COMMAND_ARR_SIZE);
+                normal_mode_prefix = 0;
+            }
+
             if (user_input == ':') {
                 command_started = true;
                 command_errored = false;
-                insert_character_into_command(command, &current_command_index, ':');
+                insert_character_into_command(command, &current_command_index, &current_command_size, ':');
                 continue;
             }
 
-            if (command_started) {
+            if (user_input == '/') {
+                search_started = true;
+                insert_character_into_command(command, &current_command_index, &current_command_size, '/');
+            }
+
+            if (command_started || search_started) {
                 if (user_input == '\n') {
-                    int result = evaluate_command(command);
-                    switch (result) {
-                        case EXIT_EDITOR:
-                            cleanup_ncurses();
-                            return 0;
-                        case EXIT_EDITOR_WITHOUT_SAVE:
-                            cleanup_ncurses();
-                            return 1;
-                        case EXIT_NORMAL_MODE:
-                            mode = INSERT;
-                            command_started = false;
+                    if (search_started) {
+                        if (!is_valid_regex(&command[1], current_command_size - 1)) {
+                            memcpy(search_error_message + sizeof("Invalid Expression: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
                             current_command_index = 0;
-                            command[current_command_index] = '\0';
-                            normal_mode_prefix = 0;
-                            break;
-                        default:
-                            memcpy(error_message + sizeof("Invalid Command: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
-                            current_command_index = 0;
-                            memset(command, '\0', COMMAND_ARR_SIZE);
-                            command_started = false;
-                            command_errored = true;
-                            break;
+                            memset(command, 0, COMMAND_ARR_SIZE);
+                            search_started = false;
+                            search_errorred = true;
+                        }
+                        else {
+                            show_search_results = true;
+                        }
                     }
-                    continue;
+
+                    else {
+                        int result = evaluate_command(command);
+                        switch (result) {
+                            case EXIT_EDITOR:
+                                cleanup_ncurses();
+                                return 0;
+                            case EXIT_EDITOR_WITHOUT_SAVE:
+                                cleanup_ncurses();
+                                return 1;
+                            case EXIT_NORMAL_MODE:
+                                mode = INSERT;
+                                command_started = false;
+                                current_command_index = 0;
+                                command[current_command_index] = '\0';
+                                normal_mode_prefix = 0;
+                                break;
+                            default:
+                                memcpy(command_error_message + sizeof("Invalid Command: ") - 1, command + 1, COMMAND_ARR_SIZE - 1);
+                                current_command_index = 0;
+                                memset(command, 0, COMMAND_ARR_SIZE);
+                                command_started = false;
+                                command_errored = true;
+                                break;
+                        }
+                        continue;
+                    }
                 }
 
                 else if (user_entered_backspace && current_command_index <= 1) {
@@ -218,9 +297,9 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                 }
 
                 if (current_command_index >= COMMAND_ARR_SIZE - 1) {
-                    const char * command_too_long_message = "Commands cannot exceed 8 characters in length.";
-                    size_t command_too_long_message_size = sizeof("Commands cannot exceed 8 characters in length.");
-                    memcpy(error_message + sizeof("Invalid Command: ") - 1, command_too_long_message, command_too_long_message_size);
+                    const char * command_too_long_message = "Input cannot exceed 100 characters in length.";
+                    size_t command_too_long_message_size = sizeof("Input cannot exceed 100 characters in length.");
+                    memcpy(command_error_message + sizeof("Invalid Input: ") - 1, command_too_long_message, command_too_long_message_size);
                     current_command_index = 0;
                     memset(command, '\0', COMMAND_ARR_SIZE);
                     command_started = false;
@@ -236,7 +315,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
                     continue;
                 }
 
-                insert_character_into_command(command, &current_command_index, user_input);
+                insert_character_into_command(command, &current_command_index, &current_command_size, user_input);
 
             }
             else {
