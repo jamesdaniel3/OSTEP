@@ -17,12 +17,18 @@ particularly glaring bugs or I find time to keep working on it.
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <curses.h> 
 #include <ctype.h>
+#include <locale.h>
+#include <wchar.h>
+
+#define NCURSES_WIDECHAR 1
+#include <curses.h> 
+
 #include "text_blob.h"
-#include "file_operations.h"
 #include "cursor.h"
 #include "command.h"
+#include "file_operations.h"
+#include "mbstrings.h"
 
 #define COMMAND_ARR_SIZE 10
 
@@ -48,7 +54,39 @@ void cleanup_ncurses(){
     endwin();
 }
 
+void print_multibyte_string(text_blob* current_line, size_t current_row){
+    mbstate_t state = { };
+    size_t next_cursor_position = 0;
+    for (char* current_char_pointer = current_line->text; *current_char_pointer;){
+        size_t const max_possible_bytes = current_line->text_size - (current_char_pointer - current_line->text);
+        wchar_t wide_char;
+        size_t bytes_in_wide_char = mbrtowc(&wide_char, current_char_pointer, max_possible_bytes, &state);
+
+        if (bytes_in_wide_char == (size_t) - 1) {
+            // mbrtowc defines this as the response for an encoding error / unreadable data
+            cleanup_ncurses();
+            exit(1);
+        }
+
+        if (bytes_in_wide_char == (size_t) - 2) {
+            // mbrtowc defines this as the response for when the n characters it read contribute to but do not complete a valid multibyte character sequence 
+            cleanup_ncurses();
+            exit(1);
+        }
+
+        cchar_t ch;
+        wchar_t wstr[] = { wide_char, L'\0' };
+
+        setcchar(&ch, wstr, 0, 0, NULL);
+        mvadd_wch(current_row, next_cursor_position, &ch);
+        next_cursor_position++;
+
+        current_char_pointer += bytes_in_wide_char;
+    }
+}
+
 int run_editor(text_blob current_text_object[static 1], size_t mode) {
+    setlocale(LC_ALL, "");
     initscr();
     noecho(); // don't echo user input
     cbreak(); // read after each character, don't wat for a newline 
@@ -84,8 +122,7 @@ int run_editor(text_blob current_text_object[static 1], size_t mode) {
         int current_row = 0;
 
         while (iterator != NULL && current_row < max_row - 1) {
-            mvprintw(current_row, 0, "%s", iterator->text);
-
+            print_multibyte_string(iterator, current_row);
             if (current_row == cursor_row) {
                 cursor_row_text_object = iterator;
             }

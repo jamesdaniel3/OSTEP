@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wchar.h>
 #include "text_blob.h"
 
 text_blob* parse_file(const char* file_path, text_blob lines_of_text[static 1]){
@@ -60,7 +61,28 @@ void output_file(const char* file_path, text_blob current_text_blob[static 1]){
     }
 
     while (current_text_blob != NULL) {
-        fprintf(fstream, "%s\n", current_text_blob->text);
+        mbstate_t state = { };
+        for (char* current_char_pointer = current_text_blob->text; *current_char_pointer;){
+            size_t const max_possible_bytes = current_text_blob->text_size - (current_char_pointer - current_text_blob->text);
+            wchar_t wide_char;
+            size_t bytes_in_wide_char = mbrtowc(&wide_char, current_char_pointer, max_possible_bytes, &state);
+
+            if (bytes_in_wide_char == (size_t) - 1) {
+                // mbrtowc defines this as the response for an encoding error / unreadable data
+                exit(1);
+            }
+
+            if (bytes_in_wide_char == (size_t) - 2) {
+                // mbrtowc defines this as the response for when the n characters it read contribute to but do not complete a valid multibyte character sequence 
+                exit(1);
+            }
+
+            fwprintf(fstream, L"%lc", wide_char);
+            current_char_pointer += bytes_in_wide_char;
+        }
+
+        fprintf(fstream, "\n");
+
         free(current_text_blob->text);
         current_text_blob = current_text_blob->next;
     }
