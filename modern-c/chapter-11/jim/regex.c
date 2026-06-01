@@ -1,0 +1,310 @@
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
+#include <ctype.h>
+#include <limits.h>
+#include "regex.h"
+#include "mbstrings.h"
+
+#include <stdio.h>
+
+bool is_valid_regex(char const* regex, size_t regex_size){
+    /*
+    This is not a great approach to this check but for the current simple set of regex operations it works 
+    I am trying to avoid writing a regex parser just for this challenge
+    */
+    size_t current_index = 0;
+
+    while (current_index < regex_size) {
+        if (regex[current_index] == ']') {
+            return false;
+        }
+        
+        if (regex[current_index] == '[') {
+            if (current_index + 4 >= regex_size) {
+                return false;
+            }
+
+            if (regex[current_index + 1] == '[') {
+                if (
+                    strncmp(&regex[current_index], "[[:alpha]]", 10) == 0 || 
+                    strncmp(&regex[current_index], "[[:digit]]", 10) == 0
+                ) {
+                    current_index += 10;
+                    continue;
+                }
+                else {
+                    return false;
+                }
+            }
+
+            if (regex[current_index + 2] != '-') {
+                return false;
+            }
+
+            if (regex[current_index + 4] != ']') {
+                return false;
+            }
+
+            char first_val = regex[current_index + 1];
+            char second_val = regex[current_index + 3];
+
+            if (!isalnum(first_val) || !isalnum(second_val)) {
+                return false;
+            }
+
+            if (isdigit(first_val) != isdigit(second_val)) {
+                return false;
+            }
+
+            current_index += 5;
+        }
+
+        current_index++;
+    }
+
+    return true;
+}
+
+typedef struct wchar_char wchar_char;
+struct wchar_char {
+    size_t num_bytes;
+    wchar_t data;
+};
+
+wchar_char get_next_char(char const* input){
+    mbstate_t state = { };
+    wchar_char result = {
+        .num_bytes = 0,
+        .data = 0
+    };
+
+    for (char const* current_char_pointer = input; *current_char_pointer;){
+        size_t const max_possible_bytes = sizeof(input) - (current_char_pointer - input);
+        wchar_t wide_char;
+        size_t bytes_in_wide_char = mbrtowc(&wide_char, current_char_pointer, max_possible_bytes, &state);
+
+        if (bytes_in_wide_char == (size_t) - 1) {
+            // mbrtowc defines this as the response for an encoding error / unreadable data
+            exit(1);
+        }
+
+        if (bytes_in_wide_char == (size_t) - 2) {
+            // mbrtowc defines this as the response for when the n characters it read contribute to but do not complete a valid multibyte character sequence 
+            exit(1);
+        }
+
+        result.num_bytes = bytes_in_wide_char;
+        result.data = wide_char;
+        break;
+    }
+
+    return result;
+}
+
+// This function assumes it is receiving valid regex 
+size_t get_next_regex_token_size(char const* regex){
+    if (regex[0] != '[') {
+        return get_next_char(regex).num_bytes;
+    }
+
+    if (
+        strncmp(regex, "[[:alpha]]", 10) == 0 ||
+        strncmp(regex, "[[:digit]]", 10) == 0
+    ) {
+        return 10;
+    }
+
+    return 5;
+}
+
+// This function assumes it is receiving valid regex 
+regex_char_range get_next_acceptable_chars(char const* regex){
+    regex_char_range result = {
+        .min_accetable_char = 0,
+        .max_accetable_char = 0,
+        .is_case_sensative = false,
+    };
+
+    if (regex[0] == '*') {
+        result.max_accetable_char = WCHAR_MAX; 
+        return result;
+    }
+
+    if (regex[0] != '[') {
+        wchar_t next_char = get_next_char(regex).data;
+        result.min_accetable_char = next_char;
+        result.max_accetable_char = next_char;
+
+        // these won't be super applicable in this case
+        result.is_case_sensative = true; 
+
+        return result;
+    }
+
+    if (strncmp(regex, "[[:alpha]]", 10) == 0) {
+        result.min_accetable_char = 'a';
+        result.max_accetable_char = 'z';
+        result.is_case_sensative = false;
+
+        return result;
+    }
+
+    if (strncmp(regex, "[[:digit]]", 10) == 0) {
+        result.min_accetable_char = '0';
+        result.max_accetable_char = '9';
+        result.is_case_sensative = false;
+
+        return result;
+    }
+
+    if (isdigit(regex[1])) {
+        result.min_accetable_char = regex[1];
+        result.max_accetable_char = regex[3];
+        result.is_case_sensative = false;
+
+        return result;
+    }
+
+    result.is_case_sensative = islower(regex[1]) == islower(regex[3]);
+
+    if (result.is_case_sensative) {
+        result.min_accetable_char = regex[1];
+        result.max_accetable_char = regex[3];
+
+        return result;
+    }
+
+    result.min_accetable_char = tolower(regex[1]);
+    result.max_accetable_char = tolower(regex[3]);
+
+    return result;
+}
+
+match_position_info get_regex_match_inner(
+    char const* text_to_search, size_t text_size, size_t current_text_index,
+    char const* regex, size_t regex_size, size_t current_regex_index,
+    size_t current_result_start, wchar_t prev_char
+){
+    if (current_regex_index >= regex_size) {
+        if (current_result_start == current_text_index) {
+            match_position_info no_match = {
+                .starting_index = 0,
+                .length = 0
+            };
+
+            return no_match;
+        }
+
+        match_position_info match = {
+            .starting_index = current_result_start,
+            .length = current_text_index - current_result_start
+        };
+        
+        return match;
+    }
+
+    if (current_text_index >= text_size) {
+        match_position_info no_match = {
+            .starting_index = 0,
+            .length = 0
+        };
+
+        return no_match;
+    }
+
+    // get valid character range 
+    regex_char_range valid_char_range = get_next_acceptable_chars(regex + current_regex_index);
+    size_t regex_token_size = get_next_regex_token_size(regex + current_regex_index);
+    wchar_char next_char_info = get_next_char(&text_to_search[current_text_index]);
+    wchar_t next_char = next_char_info.data;
+    size_t char_size = next_char_info.num_bytes;
+
+    if (
+        !valid_char_range.is_case_sensative
+    ) {
+        next_char = tolower(next_char);
+        prev_char = tolower(prev_char);
+    }
+
+    if (
+        next_char > valid_char_range.max_accetable_char ||
+        next_char < valid_char_range.min_accetable_char
+    ) {
+        if (regex_token_size + 1 < regex_size && 
+            (
+                regex[current_regex_index + regex_token_size] == '*' || 
+                regex[current_regex_index + regex_token_size] == '?'
+            )
+        ) {
+            return get_regex_match_inner(
+                text_to_search, text_size, current_text_index,
+                regex, regex_size, current_regex_index + regex_token_size,
+                current_result_start, next_char
+            );
+        }
+
+        if (
+            regex_token_size + 1 < regex_size && 
+            regex[regex_token_size] == '+' && 
+            current_text_index > 0 && 
+            prev_char <= valid_char_range.max_accetable_char &&
+            prev_char >= valid_char_range.min_accetable_char
+        ) {
+            return get_regex_match_inner(
+                text_to_search, text_size, current_text_index,
+                regex, regex_size, current_regex_index + regex_token_size,
+                current_result_start, next_char
+            );
+        }
+
+        return get_regex_match_inner(
+            text_to_search, text_size, current_text_index + char_size,
+            regex, regex_size, 0,
+            current_text_index + char_size, 0
+        );
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[current_regex_index + regex_token_size] == '+') {
+        return get_regex_match_inner(
+            text_to_search, text_size, current_text_index + char_size,
+            regex, regex_size, current_regex_index,
+            current_result_start, next_char
+        );
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[current_regex_index + regex_token_size] == '*') {
+        return get_regex_match_inner(
+            text_to_search, text_size, current_text_index + char_size,
+            regex, regex_size, 0,
+            current_result_start, next_char
+        );
+    }
+
+    if (regex_token_size + 1 < regex_size && regex[current_regex_index + regex_token_size] == '?') {
+        return get_regex_match_inner(
+            text_to_search, text_size, current_text_index + char_size,
+            regex, regex_size, current_regex_index + regex_token_size,
+            current_result_start, next_char
+        );
+    }
+
+    return get_regex_match_inner(
+        text_to_search, text_size, current_text_index + char_size,
+        regex, regex_size, current_regex_index + regex_token_size,
+        current_result_start, next_char
+    );
+}
+
+// This function assumes it is receiving valid regex
+match_position_info get_regex_match(
+    char const* text_to_search, size_t text_size, 
+    char const* regex, size_t regex_size
+){
+    return get_regex_match_inner(
+        text_to_search, text_size, 0,
+        regex, regex_size, 0,
+        0, 0
+    );
+}
