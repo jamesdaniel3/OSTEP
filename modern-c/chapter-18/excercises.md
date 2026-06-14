@@ -185,7 +185,7 @@ _Generic((0 + (XT) + 0),                        \
 #### By using _Generic, write a macro `SIGNEDNESS(XT)` that returns false or true according to the signedness of type `XT`, where both have a wide standard integer type. For example, SIGNEDNESS(11) would be true.
 
 ```c
-#define SIGNEDNESSS(XT)              \
+#define SIGNEDNESS(XT)              \
 _Generic((0 + (XT) + 0),             \
     signed: true,                    \
     unsigned: false,                 \
@@ -197,4 +197,82 @@ _Generic((0 + (XT) + 0),             \
 
 ## Excercise 8
 
-#### By using _Generic, write a macro `mix(A, B)` that computes the maximum value of `A` and `B`, where both have a wide standard integer type. If both have the same signedness, the result type should be the wider type of the two. If boht have different signedness, the return type should be an unsigend type that fits all postive values of both types. 
+#### By using _Generic, write a macro `mix(A, B)` that computes the maximum value of `A` and `B`, where both have a wide standard integer type. If both have the same signedness, the result type should be the wider type of the two. If both have different signedness, the return type should be an unsigned type that fits all postive values of both types. 
+
+```c
+#define HANDLE_UNSIGNED_CAST(A, B) (SIGNEDNESS(A) != SIGNEDNESS(B)) ? (unsigned)(GET_MAX(A, B)) : GET_MAX(A, B)
+#define GET_MAX(A, B) \
+    (A > B) ?  \
+        (MAXVAL(A) > MAXVAL(B)) ? \
+            (A) : (PROMOTE(B, A)) \
+        : (MAXVAL(B) > MAXVAL(A)) ? \
+            (B) : PROMOTE(A, B)
+
+#define mix(A, B) HANDLE_UNSIGNED_CAST(A, B)
+```
+
+## Excercise 9
+
+#### The previously presented version of `static_assert_compatible` also detects a possible mismatch when presented with an array and a pointer. Modify the macro so that it accepts an array or pointer `A` with base `b` and tests whether `B` is compatible to `b*`.
+
+This is the implementation I was given: 
+
+```c
+#define static_assert_compatible(A, B, REASON) \
+    static_assert( \
+        _Generic((typeof(A)*)nullptr, \
+            typeof(B)*: true, \
+            default: false,)  \
+        "expected_compatible_types: " REASON ", have " #A " and " #B "")
+```
+
+We can update it like htis:
+
+```c
+#define static_assert_compatible(A, B, REASON) \
+    static_assert( \
+        _Generic((typeof(&*A)*)NULL, \
+            typeof(B)*: true, \
+            default: false),  \
+        "expected_compatible_types: " REASON ", have " #A " and " #B "")
+```
+
+The change works by taking the address of the first param, which would force any arrays to decay to pointers, and then casting it back to the pointer that it was. This does not break pointers. 
+
+## Excercise 10 
+
+#### By using your findings, improve the definition of `static_assert_compatible` so that it rejects arguments that are arrays or function specifiers. Pointers to arrays or pointers to functions should still work.
+
+It already rejected arrays and function specifiers...
+
+## Excercise 11
+
+#### Write a small macro `isnegative` as needed for `MAX`
+
+Here is the imp of `MAX`:
+
+```c
+#define MAX(X, Y) \
+({                \
+    auto const max_x = (X);  \
+    auto const max_y = (Y);  \
+    \
+    ((isnegative(max_x) && !isnegative(max_y))     \
+    ? max_y  \
+    : ((is_negative(max_y) && !isnegative(max_x))  \
+    ? max_x  \
+    : ((max_x < max_y) ? max_y : max_x))); \
+})
+```
+
+Here is my macro:
+
+```c
+#define isnegative(X) ((X) < 0)
+```
+
+## Excercise 12
+
+#### Prove that the result type of `MAX` is always able to hold the mathematical result of the maximum operation
+
+Not totally sure what this is digging at. The two vars defined in the `MAX` macro are both defined with auto, and one of those has to be what is returned. The auto variable will be large enough to hold the result. 
