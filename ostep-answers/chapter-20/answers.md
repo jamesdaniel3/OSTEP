@@ -5,9 +5,9 @@ I think you still only need one register no matter what. You have a register tha
 ### Use the simulator to perform translations given random seeds 0, 1, and 2, and check your answers using the `-c` flag. How many memory references are needed to perform each lookup?
 
 Each lookup requires 3 memory references if it does not fail sooner. 
-- use the first 5 bits to get the location in the PDBR to get the PFN of the PTE
-- use the next 5 digits offsetting that PFN to get a new PFN where the result is stored 
-- use the last 5 digits as an offset from that PFN to get the value 
+- Read the page directory entry using the first 5 bits.
+- Read the page table entry using the next 5 bits.
+- Read the actual data using the PFN from the page table entry and the final 5-bit offset.
 
 #### Given your understanding of how cache memory works, how do you think memory references to the page table will behave in the cache? Will they lead to lots of cache hits (and thus fast accesses?) Or lots of misses (and thus slow accesses)?
 
