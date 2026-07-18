@@ -4,13 +4,9 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <ctype.h>
 
 char error_message[30] = "An error has occurred\n";
-
-void exit_shell(){
-    fwrite(error_message, strlen(error_message), 1, stderr); 
-    exit(1);
-}
 
 bool is_built_in_command(char* program){
     return strcmp("exit", program) == 0 || strcmp("cd", program) == 0 || strcmp("path", program) == 0;
@@ -22,7 +18,8 @@ char* find_path(char* program, char** paths, size_t num_paths){
         size_t path_size = strlen(paths[i]) + strlen(program) + 1; 
         result = realloc(NULL, path_size);
         if (result == NULL){
-            exit_shell();
+            fwrite(error_message, strlen(error_message), 1, stderr); 
+            exit(1);
         }
 
         memcpy(result, paths[i], strlen(paths[i]));
@@ -37,40 +34,62 @@ char* find_path(char* program, char** paths, size_t num_paths){
     return NULL;
 }
 
-typedef struct arg_arr arg_arr;
-struct arg_arr {
-    char** args;
+char *trim_whitespace(char *str){
+    if (str == NULL) {
+        return NULL;
+    }
+    char *end;
+
+    while(isspace((unsigned char)*str)) str++;
+
+    if(*str == 0)  // All spaces?
+    return str;
+
+    end = str + strlen(str) - 1;
+    while(end > str && isspace((unsigned char)*end)) end--;
+
+    end[1] = '\0';
+
+    return str;
+}
+
+typedef struct split_arr split_arr;
+struct split_arr {
+    char** strings;
     size_t len;
     size_t cap;
 };
 
-arg_arr get_args(char* line){
+split_arr split_string(char* line, char* delimiters){
     size_t len = 0;
     size_t cap = 5;
     char** args = malloc(sizeof(char *) * cap);
     if (args == NULL) {
-        exit_shell();
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
     }
 
     char** arg_pointer;
 
-    for (arg_pointer = args; (*arg_pointer = strsep(&line, " \t\n")) != NULL; arg_pointer++){
+    for (arg_pointer = args; (*arg_pointer = trim_whitespace(strsep(&line, delimiters))) != NULL;){
         if (**arg_pointer != '\0') {
             if (++len == cap - 1) {
                 cap *= 2;
                 args = reallocf(args, sizeof(char *) * cap);
                 if (args == NULL){
-                    exit_shell();
+                    fwrite(error_message, strlen(error_message), 1, stderr); 
+                    exit(1);
                 }
             }
         }
+        arg_pointer++;
     }
 
     args[len] = NULL;
     len++;
 
-    arg_arr result = {
-        .args = args,
+    split_arr result = {
+        .strings = args,
         .cap = cap, 
         .len = len,
     };
@@ -78,12 +97,55 @@ arg_arr get_args(char* line){
     return result;         
 }
 
-void handle_user_command(char* args[static 1], char** paths, size_t num_paths){
+typedef struct command_arr command_arr;
+struct command_arr {
+    split_arr* commands;
+    size_t len;
+    size_t cap;
+};
+
+command_arr split_args_into_commands(char* line){
+    split_arr* command_list = malloc(sizeof(split_arr) * 5);
+    if (command_list == NULL) {
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
+    }
+
+    command_arr result = {
+        .commands = command_list,
+        .len = 0,
+        .cap = 5
+    };
+
+    split_arr strings_of_commands = split_string(line, "&");
+
+    for(size_t i = 0; i < strings_of_commands.len - 1; i++){ // - 1 to avoid the null termination at the end of the list
+        split_arr command = split_string(strings_of_commands.strings[i], " \t\n");
+
+        if (result.len >= result.cap){
+            result.cap *= 2;
+            result.commands = reallocf(result.commands, sizeof(split_arr*) * result.cap);
+            if (result.commands == NULL){
+                fwrite(error_message, strlen(error_message), 1, stderr); 
+                exit(1);
+            }
+        }
+
+        result.commands[result.len] = command;
+        result.len++;
+    }
+
+    return result;
+}
+
+int handle_user_command(char* args[static 1], char** paths, size_t num_paths){
     char* path = find_path(args[0], paths, num_paths);    
 
     if (path == NULL) {
-        exit_shell();
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
     }
+
     args[0] = path;  
 
     int pid = fork();
@@ -91,19 +153,16 @@ void handle_user_command(char* args[static 1], char** paths, size_t num_paths){
     if (pid == 0) {
         int result = execv(args[0], args);
         if (result < 0) {
-            exit_shell();
+           fwrite(error_message, strlen(error_message), 1, stderr); 
         }
+        free(path);
+        return 0;
     }
 
     else {
-        int stat;
-        int cpid = waitpid(pid, &stat, WUNTRACED);
-        if (cpid < 0) {
-            exit_shell();
-        }
+        free(path);
+        return pid;
     }
-
-    free(path);
 }
 
 void handle_built_in_command(char* args[static 1], size_t args_len, char** paths, size_t num_paths) {
@@ -112,7 +171,8 @@ void handle_built_in_command(char* args[static 1], size_t args_len, char** paths
         (strcmp(args[0], "cd") == 0 && args_len != 3)
     ) {
         // parsing logic adds a NULL entry to the end of the array
-        exit_shell();
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        return;
     }
 
     if (strcmp(args[0], "exit") == 0) {
@@ -123,7 +183,7 @@ void handle_built_in_command(char* args[static 1], size_t args_len, char** paths
         // doesn't seem to be working with ~
         int result = chdir(args[1]);
         if (result < 0){
-            exit_shell();
+            fwrite(error_message, strlen(error_message), 1, stderr); 
         }
     }
 
@@ -133,7 +193,8 @@ void handle_built_in_command(char* args[static 1], size_t args_len, char** paths
 
         paths = malloc(sizeof(char *) * num_paths);
         if (paths == NULL) {
-            exit_shell();
+            fwrite(error_message, strlen(error_message), 1, stderr); 
+            exit(1);
         }
         for(size_t i = 1; i < args_len - 1; i++){
             paths[i - 1] = args[i];
@@ -143,7 +204,8 @@ void handle_built_in_command(char* args[static 1], size_t args_len, char** paths
 
 int main(int argc, char* argv[]){
     if(argc > 2) {
-        exit_shell();
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
     }
 
     bool is_interactive_mode = argc == 1;
@@ -152,14 +214,16 @@ int main(int argc, char* argv[]){
         fp = fopen(argv[1], "r");
 
         if (fp == NULL) {
-            exit_shell();
+            fwrite(error_message, strlen(error_message), 1, stderr); 
+            exit(1);
         }
     }
 
     size_t num_paths = 1;
     char** paths = malloc(sizeof(char *) * num_paths);
     if (paths == NULL) {
-        exit_shell();
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
     }
     paths[0] = "/bin/";
 
@@ -172,18 +236,37 @@ int main(int argc, char* argv[]){
     }
 
     while ((linelen = getline(&line, &line_cap, is_interactive_mode ? stdin : fp)) > 0) {
-        arg_arr line_args = get_args(line); 
-        if(is_built_in_command(line_args.args[0])) {
-            handle_built_in_command(line_args.args, line_args.len, paths, num_paths);
-        } else {
-            handle_user_command(line_args.args, paths, num_paths);
+        command_arr command_list = split_args_into_commands(line);
+        int* cpids = malloc(sizeof(int *) * command_list.len);
+        size_t num_child_processes = 0;
+
+        for (size_t i = 0; i < command_list.len; i++) {
+            split_arr current_command = command_list.commands[i];
+
+            if(is_built_in_command(current_command.strings[0])) {
+                handle_built_in_command(current_command.strings, current_command.len, paths, num_paths);
+            } else {
+                int cpid =  handle_user_command(current_command.strings, paths, num_paths);
+                if (cpid > 0) {
+                    cpids[num_child_processes] = cpid;
+                    num_child_processes++;
+                }
+            }
+        }
+
+        for (size_t i = 0; i < num_child_processes; i++) {
+            int stat;
+            int cpid = waitpid(cpids[i], &stat, WUNTRACED);
+            if (cpid < 0) {
+                fwrite(error_message, strlen(error_message), 1, stderr); 
+            }
         }
 
         if (is_interactive_mode) {
             printf("wish> ");
         }
 
-        free(line_args.args);
+        free(command_list.commands);
     }
 
     return 0;
