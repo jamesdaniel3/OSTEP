@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-size_t num_paths = 1;
-char* paths[1] = { "/bin/" };
 char error_message[30] = "An error has occurred\n";
 
 void exit_shell(){
@@ -14,7 +12,11 @@ void exit_shell(){
     exit(1);
 }
 
-char* find_path(char * program){
+bool is_built_in_command(char* program){
+    return strcmp("exit", program) == 0 || strcmp("cd", program) == 0 || strcmp("path", program) == 0;
+}
+
+char* find_path(char* program, char** paths, size_t num_paths){
     char * result;
     for(size_t i = 0; i < num_paths; i++){
         size_t path_size = strlen(paths[i]) + strlen(program) + 1; 
@@ -76,6 +78,69 @@ arg_arr get_args(char* line){
     return result;         
 }
 
+void handle_user_command(char* args[static 1], char** paths, size_t num_paths){
+    char* path = find_path(args[0], paths, num_paths);    
+
+    if (path == NULL) {
+        exit_shell();
+    }
+    args[0] = path;  
+
+    int pid = fork();
+
+    if (pid == 0) {
+        int result = execv(args[0], args);
+        if (result < 0) {
+            exit_shell();
+        }
+    }
+
+    else {
+        int stat;
+        int cpid = waitpid(pid, &stat, WUNTRACED);
+        if (cpid < 0) {
+            exit_shell();
+        }
+    }
+
+    free(path);
+}
+
+void handle_built_in_command(char* args[static 1], size_t args_len, char** paths, size_t num_paths) {
+    if (
+        (strcmp(args[0], "exit") == 0 && args_len != 2) || \
+        (strcmp(args[0], "cd") == 0 && args_len != 3)
+    ) {
+        // parsing logic adds a NULL entry to the end of the array
+        exit_shell();
+    }
+
+    if (strcmp(args[0], "exit") == 0) {
+        exit(0);
+    }
+
+    else if (strcmp(args[0], "cd") == 0) {
+        // doesn't seem to be working with ~
+        int result = chdir(args[1]);
+        if (result < 0){
+            exit_shell();
+        }
+    }
+
+    else if (strcmp(args[0], "path") == 0) {
+        num_paths = args_len - 2;
+        free(paths);
+
+        paths = malloc(sizeof(char *) * num_paths);
+        if (paths == NULL) {
+            exit_shell();
+        }
+        for(size_t i = 1; i < args_len - 1; i++){
+            paths[i - 1] = args[i];
+        }
+    }
+}
+
 int main(int argc, char* argv[]){
     if(argc > 2) {
         exit_shell();
@@ -91,6 +156,13 @@ int main(int argc, char* argv[]){
         }
     }
 
+    size_t num_paths = 1;
+    char** paths = malloc(sizeof(char *) * num_paths);
+    if (paths == NULL) {
+        exit_shell();
+    }
+    paths[0] = "/bin/";
+
     char* line = NULL;
     size_t line_cap = 0;
     ssize_t linelen;
@@ -100,34 +172,18 @@ int main(int argc, char* argv[]){
     }
 
     while ((linelen = getline(&line, &line_cap, is_interactive_mode ? stdin : fp)) > 0) {
-        arg_arr line_args = get_args(line);            // don't forget to clear line_args!!
-        char* path = find_path(line_args.args[0]);     // don't forget to clear path!!
-
-        if (path == NULL) {
-            exit_shell();
-        }
-        line_args.args[0] = path;  
-
-        int pid = fork();
-
-        if (pid == 0) {
-            int result = execv(line_args.args[0], line_args.args);
-            if (result < 0) {
-                exit_shell();
-            }
-        }
-
-        else {
-            int stat;
-            int cpid = waitpid(pid, &stat, WUNTRACED);
-            if (cpid < 0) {
-                exit_shell();
-            }
+        arg_arr line_args = get_args(line); 
+        if(is_built_in_command(line_args.args[0])) {
+            handle_built_in_command(line_args.args, line_args.len, paths, num_paths);
+        } else {
+            handle_user_command(line_args.args, paths, num_paths);
         }
 
         if (is_interactive_mode) {
             printf("wish> ");
         }
+
+        free(line_args.args);
     }
 
     return 0;
