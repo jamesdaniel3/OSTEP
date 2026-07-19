@@ -8,15 +8,17 @@
 #include <fcntl.h>
 
 char error_message[30] = "An error has occurred\n";
+char ** paths = NULL;
+size_t path_len = 0;
 
 bool is_built_in_command(char* program){
     return strcmp("exit", program) == 0 || strcmp("cd", program) == 0 || strcmp("path", program) == 0;
 }
 
-char* find_path(char* program, char** paths, size_t num_paths){
+char* find_path(char* program){
     char * result;
-    for(size_t i = 0; i < num_paths; i++){
-        size_t path_size = strlen(paths[i]) + strlen(program) + 1; 
+    for(size_t i = 0; i < path_len; i++){
+        size_t path_size = strlen(paths[i]) + strlen(program) + 2; 
         result = realloc(NULL, path_size);
         if (result == NULL){
             fwrite(error_message, strlen(error_message), 1, stderr); 
@@ -24,7 +26,8 @@ char* find_path(char* program, char** paths, size_t num_paths){
         }
 
         memcpy(result, paths[i], strlen(paths[i]));
-        memcpy(result + strlen(paths[i]), program, strlen(program));
+        result[strlen(paths[i])] = '/';
+        memcpy(result + strlen(paths[i]) + 1, program, strlen(program));
         result[path_size - 1] = '\0';
 
         int access_check = access(result, X_OK);
@@ -35,7 +38,7 @@ char* find_path(char* program, char** paths, size_t num_paths){
     return NULL;
 }
 
-char *trim_whitespace(char *str){
+char* trim_whitespace(char *str){
     if (str == NULL) {
         return NULL;
     }
@@ -61,6 +64,60 @@ struct split_arr {
     size_t cap;
 };
 
+char* add_space_to_redirectors(char* command){
+    size_t result_len = strlen(command);
+    char* result = malloc(result_len);
+    if (result == NULL){
+        fwrite(error_message, strlen(error_message), 1, stderr); 
+        exit(1);
+    }
+    result = strdup(command);
+
+    char* replacement_str = " > ";
+    size_t command_index = 0;
+    size_t result_index = 0;
+    char* location = strchr(command, '>');
+
+    if(location == NULL){
+        return result;
+    }
+
+    while (location != NULL){
+        size_t length = location - (command + command_index);
+
+        result = reallocf(result, result_len + 3);
+        if (result == NULL){
+            fwrite(error_message, strlen(error_message), 1, stderr); 
+            exit(1);
+        }
+        result_len += 3;
+
+        memcpy(
+            result + result_index, 
+            command + command_index,
+            length
+        );
+        memcpy(
+            result + result_index + length, 
+            replacement_str, 
+            3
+        );
+
+        result_index += (length + 3);
+        command_index += (length + 1);
+        location = strchr(command + command_index, '>');
+    }
+
+    memcpy(
+        result + result_index, 
+        command + command_index,
+        command + strlen(command) - (command + command_index)
+    );
+    result[result_len - 1] = '\0';
+
+    return result;
+}
+
 split_arr split_string(char* line, char* delimiters){
     size_t len = 0;
     size_t cap = 5;
@@ -70,20 +127,23 @@ split_arr split_string(char* line, char* delimiters){
         exit(1);
     }
 
-    char** arg_pointer;
+    char** next_arg = args;
 
-    for (arg_pointer = args; (*arg_pointer = trim_whitespace(strsep(&line, delimiters))) != NULL;){
-        if (**arg_pointer != '\0') {
-            if (++len == cap - 1) {
+    while ((*next_arg = trim_whitespace(strsep(&line, delimiters))) != NULL){
+        if (**next_arg != '\0') {
+            len++;
+            if (len >= cap - 1) { 
                 cap *= 2;
                 args = reallocf(args, sizeof(char *) * cap);
                 if (args == NULL){
                     fwrite(error_message, strlen(error_message), 1, stderr); 
                     exit(1);
                 }
+                next_arg = args + len - 1;
             }
+
+            next_arg++;
         }
-        arg_pointer++;
     }
 
     args[len] = NULL;
@@ -121,7 +181,8 @@ command_arr split_args_into_commands(char* line){
     split_arr strings_of_commands = split_string(line, "&");
 
     for(size_t i = 0; i < strings_of_commands.len - 1; i++){ // - 1 to avoid the null termination at the end of the list
-        split_arr command = split_string(strings_of_commands.strings[i], " \t\n");
+        char * cleaned_command = add_space_to_redirectors(strings_of_commands.strings[i]);
+        split_arr command = split_string(cleaned_command, " \t\n");
 
         if (result.len >= result.cap){
             result.cap *= 2;
@@ -139,12 +200,12 @@ command_arr split_args_into_commands(char* line){
     return result;
 }
 
-int handle_user_command(char* args[static 1], char** paths, size_t num_paths){
-    char* path = find_path(args[0], paths, num_paths);    
+int handle_user_command(char* args[static 1]){
+    char* path = find_path(args[0]);    
 
     if (path == NULL) {
         fwrite(error_message, strlen(error_message), 1, stderr); 
-        exit(1);
+        return -1;
     }
 
     args[0] = path;  
@@ -184,24 +245,23 @@ int handle_user_command(char* args[static 1], char** paths, size_t num_paths){
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);
             close(fd);
-
         }
 
         int result = execv(args[0], args);
         if (result < 0) {
             fwrite(error_message, strlen(error_message), 1, stderr); 
         }
-        free(path);
+        // free(path);
         return 0;
     }
 
     else {
-        free(path);
+        // free(path);
         return pid;
     }
 }
 
-void handle_built_in_command(char* args[static 1], size_t args_len, char** paths, size_t num_paths) {
+void handle_built_in_command(char* args[static 1], size_t args_len) {
     if (
         (strcmp(args[0], "exit") == 0 && args_len != 2) || \
         (strcmp(args[0], "cd") == 0 && args_len != 3)
@@ -224,16 +284,16 @@ void handle_built_in_command(char* args[static 1], size_t args_len, char** paths
     }
 
     else if (strcmp(args[0], "path") == 0) {
-        num_paths = args_len - 2;
+        path_len = args_len - 2;
         free(paths);
 
-        paths = malloc(sizeof(char *) * num_paths);
+        paths = malloc(sizeof(char *) * path_len);
         if (paths == NULL) {
             fwrite(error_message, strlen(error_message), 1, stderr); 
             exit(1);
         }
         for(size_t i = 1; i < args_len - 1; i++){
-            paths[i - 1] = args[i];
+            paths[i - 1] = strdup(args[i]);
         }
     }
 }
@@ -255,13 +315,13 @@ int main(int argc, char* argv[]){
         }
     }
 
-    size_t num_paths = 1;
-    char** paths = malloc(sizeof(char *) * num_paths);
+    path_len = 1;
+    paths = malloc(sizeof(char *) * path_len);
     if (paths == NULL) {
         fwrite(error_message, strlen(error_message), 1, stderr); 
         exit(1);
     }
-    paths[0] = "/bin/";
+    paths[0] = "/bin";
 
     char* line = NULL;
     size_t line_cap = 0;
@@ -280,9 +340,9 @@ int main(int argc, char* argv[]){
             split_arr current_command = command_list.commands[i];
 
             if(is_built_in_command(current_command.strings[0])) {
-                handle_built_in_command(current_command.strings, current_command.len, paths, num_paths);
+                handle_built_in_command(current_command.strings, current_command.len);
             } else {
-                int cpid =  handle_user_command(current_command.strings, paths, num_paths);
+                int cpid = handle_user_command(current_command.strings);
                 if (cpid > 0) {
                     cpids[num_child_processes] = cpid;
                     num_child_processes++;
