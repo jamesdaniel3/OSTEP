@@ -85,7 +85,7 @@ char* add_space_to_redirectors(char* command){
     while (location != NULL){
         size_t length = location - (command + command_index);
 
-        result = reallocf(result, result_len + 3);
+        result = realloc(result, result_len + 3);
         if (result == NULL){
             fwrite(error_message, strlen(error_message), 1, stderr); 
             exit(1);
@@ -134,7 +134,7 @@ split_arr split_string(char* line, char* delimiters){
             len++;
             if (len >= cap - 1) { 
                 cap *= 2;
-                args = reallocf(args, sizeof(char *) * cap);
+                args = realloc(args, sizeof(char *) * cap);
                 if (args == NULL){
                     fwrite(error_message, strlen(error_message), 1, stderr); 
                     exit(1);
@@ -186,7 +186,7 @@ command_arr split_args_into_commands(char* line){
 
         if (result.len >= result.cap){
             result.cap *= 2;
-            result.commands = reallocf(result.commands, sizeof(split_arr*) * result.cap);
+            result.commands = realloc(result.commands, sizeof(split_arr*) * result.cap);
             if (result.commands == NULL){
                 fwrite(error_message, strlen(error_message), 1, stderr); 
                 exit(1);
