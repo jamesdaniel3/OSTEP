@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <ctype.h>
+#include <fcntl.h>
 
 char error_message[30] = "An error has occurred\n";
 
@@ -151,9 +152,44 @@ int handle_user_command(char* args[static 1], char** paths, size_t num_paths){
     int pid = fork();
 
     if (pid == 0) {
+        // redirect output if necessary 
+        size_t current_index = 0;
+        char* redirect_file_name = NULL;
+
+        while (args[current_index] != NULL){
+            if (strcmp(args[current_index], ">") != 0) {
+                current_index++;
+                continue;
+            }
+
+            if (!args[current_index + 1] || args[current_index + 2] != NULL){
+                fwrite(error_message, strlen(error_message), 1, stderr); 
+                return -1;
+            }
+
+            redirect_file_name = args[current_index + 1];
+            args[current_index] = NULL;
+            break;
+        }
+
+        if (redirect_file_name) {
+            int fd = open(redirect_file_name,
+                        O_WRONLY | O_CREAT | O_TRUNC,
+                        0644);
+            if (fd < 0){
+                fwrite(error_message, strlen(error_message), 1, stderr); 
+                exit(1);
+            }
+
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+
+        }
+
         int result = execv(args[0], args);
         if (result < 0) {
-           fwrite(error_message, strlen(error_message), 1, stderr); 
+            fwrite(error_message, strlen(error_message), 1, stderr); 
         }
         free(path);
         return 0;
