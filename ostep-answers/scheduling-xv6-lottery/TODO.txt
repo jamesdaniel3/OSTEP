@@ -1,0 +1,7 @@
+X Implement random number generation
+X Implement random scheduler 
+X Implement getpinfo
+X Implement ps 
+Write tests 
+Create graph 
+Update random scheudler and getpinfo to rely on global variables; ensure tests still pass 
