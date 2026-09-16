@@ -1,3 +1,21 @@
+/*  TEST RESULTS: 
+
+Basic Implementation: 1 Global Lock Used for all Relevant operations
+
+Time to search for 20000 values with 1 threads: 1.7071923630
+Time to search for 20000 values with 2 threads: 2.4495175210
+Time to search for 20000 values with 3 threads: 2.4950721470
+Time to search for 20000 values with 4 threads: 2.5344956870
+Time to search for 20000 values with 5 threads: 2.5632890820
+Time to search for 20000 values with 6 threads: 2.5951465180
+Time to search for 20000 values with 7 threads: 2.6412031480
+Time to search for 20000 values with 8 threads: 2.6784806550
+
+Advanced Implementation: 1 Lock Per Node
+
+*/
+
+
 #include <pthread.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -6,21 +24,14 @@
 #include "../rng64.h"
 #include "btree.h"
 
-#define NUM_VALUES 200000
-#define NUM_OPERATIONS 5000
+#define NUM_VALUES 2000000
+#define NUM_OPERATIONS 200000
 #define BILLION 1000000000.0
-#define MAX_THREAD_COUNT 4
+#define MAX_THREAD_COUNT 8
 
 // feels like this should be replaced with one struct list tbh
-int operation_list[NUM_OPERATIONS];
-int operation_arg_list[NUM_OPERATIONS];
+int searches[NUM_OPERATIONS];
 tree_node* head;
-
-enum {
-    TREE_SEARCH = 0,
-    TREE_INSERT = 1,
-    TREE_DELETE = 2
-} FUNCTION_LIST_INDEXES;
 
 typedef struct runner_args runner_args;
 struct runner_args{
@@ -31,21 +42,14 @@ struct runner_args{
 void* run_operations(void* args){
     runner_args args_unpacked = *(runner_args *)args;
 
+    size_t num_found = 0;
+
     for(size_t i = 0; i < args_unpacked.num_operations;i++){
-        int argument = operation_arg_list[args_unpacked.starting_index + i];
-        switch (operation_list[args_unpacked.starting_index + i]) {
-            // I wonder if I have to be malloc'ing in here
-            case TREE_SEARCH:
-                tree_search(head, argument);
-                break;
-            case TREE_INSERT:
-                tree_insert(head, argument);
-                break;
-            case TREE_DELETE:
-                tree_delete(head, argument);
-                break;
-        }
+        int argument = searches[args_unpacked.starting_index + i];
+        num_found += tree_search(head, argument);
     }
+
+    printf("Num Found: %zu\n", num_found);
 
     return NULL;
 }
@@ -53,9 +57,7 @@ void* run_operations(void* args){
 int main(){
     rng64_randomize();
     rng64_intrange_spec nums;
-    rng64_intrange_spec functions;
     rng64_set_intrange(&nums, INT_MIN, INT_MAX);
-    rng64_set_intrange(&functions, 0, 2);
     
     head = init_node();
 
@@ -66,10 +68,7 @@ int main(){
     
     for(size_t i = 0; i < NUM_OPERATIONS; i++){
         int random_arg = (int) rng64_intrange(&nums);
-        int random_operation = (int) rng64_intrange(&functions);
-        
-        operation_arg_list[i] = random_arg;
-        operation_list[i] = random_operation;
+        searches[i] = random_arg;
     }
 
     struct timespec start, end;

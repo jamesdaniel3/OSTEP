@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -g -fsanitize=address
 LDFLAGS = -pthread
 
 tester: btree_tester.o btree.o

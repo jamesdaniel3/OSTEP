@@ -7,8 +7,17 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <pthread.h>
 
-#define M 25
+#define M 925   // Page size is 4 KB on this OS
+
+typedef struct lock_info lock_info;
+struct lock_info{
+    pthread_mutex_t lock;
+    int lock_initialized;
+};
+
+lock_info* global_lock;
 
 typedef struct tree_node tree_node;
 struct tree_node {
@@ -40,6 +49,23 @@ void walk_tree(tree_node* head){
 }
 
 tree_node* init_node(){
+    if(global_lock == NULL){
+        global_lock = malloc(sizeof(lock_info));
+        assert(global_lock != NULL);
+        
+        if (!global_lock->lock_initialized){
+            int rc = pthread_mutex_init(&global_lock->lock, NULL);
+            assert(rc == 0);
+            global_lock->lock_initialized = 1;
+        }
+    }
+
+    if (!global_lock->lock_initialized) {
+        int rc = pthread_mutex_init(&global_lock->lock, NULL);
+        assert(rc == 0);
+        global_lock->lock_initialized = 1;
+    }
+
     tree_node* new_node = malloc(sizeof(tree_node));
     assert(new_node != NULL);
 
@@ -63,11 +89,17 @@ void destroy_node(tree_node* node){
     free(node);
 }
 
-void destroy_tree(tree_node* head){
+void destroy_tree_inner(tree_node* head){
     for(size_t i = 0; i < head->num_children; i++) {
-        destroy_tree(head->children[i]);
+        destroy_tree_inner(head->children[i]);
     }
     destroy_node(head);
+}
+
+void destroy_tree(tree_node* head){
+    pthread_mutex_lock(&global_lock->lock);
+    destroy_tree_inner(head);
+    pthread_mutex_unlock(&global_lock->lock);
 }
 
 size_t add_key_to_keylist(tree_node* node, int val) {           
@@ -126,7 +158,7 @@ void split_non_root_node(tree_node* parent, tree_node* full_child){
     }
 }
 
-void tree_insert(tree_node* head, int new_val){
+void tree_insert_inner(tree_node* head, int new_val){
     // check if full and grow if so, only catches the root 
     if (head->num_keys == M) {
         int midpoint = M / 2;
@@ -182,7 +214,7 @@ void tree_insert(tree_node* head, int new_val){
                 continue;
             }
 
-            tree_insert(head->children[i], new_val);
+            tree_insert_inner(head->children[i], new_val);
             
             // if the child is full, add a sibling
             if (head->children[i]->num_keys == M) {
@@ -192,7 +224,7 @@ void tree_insert(tree_node* head, int new_val){
             return;
         }
 
-        tree_insert(head->children[head->num_keys], new_val);
+        tree_insert_inner(head->children[head->num_keys], new_val);
         
         if(head->children[head->num_keys]->num_keys == M) {
             split_non_root_node(head, head->children[head->num_keys]);
@@ -202,6 +234,12 @@ void tree_insert(tree_node* head, int new_val){
     }
     
     add_key_to_keylist(head, new_val);
+}
+
+void tree_insert(tree_node* head, int new_val){
+    pthread_mutex_lock(&global_lock->lock);
+    tree_insert_inner(head, new_val);
+    pthread_mutex_unlock(&global_lock->lock);
 }
 
 int steal_key_from_neighbor(tree_node* node, size_t child_index) {
@@ -383,7 +421,8 @@ int merge_with_neighbor(tree_node* node, size_t child_index) {
     return 0;
 }
 
-void tree_delete(tree_node* head, int target){
+
+void tree_delete_inner(tree_node* head, int target){
     for (size_t i = 0; i < head->num_keys; i++){
         if (
             head->num_children > 0 && 
@@ -411,7 +450,7 @@ void tree_delete(tree_node* head, int target){
             // handle the recursive case
             tree_node* child_to_recurse = head->children[i];
             head->keys[i] = child_to_recurse->keys[child_to_recurse->num_keys - 1];
-            return tree_delete(child_to_recurse, child_to_recurse->keys[child_to_recurse->num_keys - 1]);
+            return tree_delete_inner(child_to_recurse, child_to_recurse->keys[child_to_recurse->num_keys - 1]);
         }
 
         if (head->keys[i] > target) {
@@ -419,7 +458,7 @@ void tree_delete(tree_node* head, int target){
                 return;
             }
 
-            tree_delete(head->children[i], target);
+            tree_delete_inner(head->children[i], target);
         }
     }
 
@@ -434,11 +473,17 @@ void tree_delete(tree_node* head, int target){
         }
     }
     if (head->num_children > 0){
-        return tree_delete(head->children[head->num_children - 1], target);
+        return tree_delete_inner(head->children[head->num_children - 1], target);
     }
 }
 
-int tree_search(tree_node* head, int target){
+void tree_delete(tree_node* head, int target){
+    pthread_mutex_lock(&global_lock->lock);
+    tree_delete_inner(head, target);
+    pthread_mutex_unlock(&global_lock->lock);
+}
+
+int tree_search_inner(tree_node* head, int target){
     for(size_t i = 0; i < head->num_keys; i++){
         if(head->keys[i] == target){
             return 1;
@@ -449,7 +494,7 @@ int tree_search(tree_node* head, int target){
                 return 0;
             }
 
-            return tree_search(head->children[i], target);
+            return tree_search_inner(head->children[i], target);
         }
     }
     
@@ -457,5 +502,13 @@ int tree_search(tree_node* head, int target){
         return 0;
     }
 
-    return tree_search(head->children[head->num_children - 1], target);
+    return tree_search_inner(head->children[head->num_children - 1], target);
+}
+
+int tree_search(tree_node* head, int target){
+    pthread_mutex_lock(&global_lock->lock);
+    int ret = tree_search_inner(head, target);
+    pthread_mutex_unlock(&global_lock->lock);
+
+    return ret;
 }
