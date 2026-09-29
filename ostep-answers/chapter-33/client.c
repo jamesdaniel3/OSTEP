@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 #define SERVER_PORT 3000
-#define MAX_BUFFER_LEN 4000
+#define MAX_BUFFER_LEN 256
 
 int main(int argc, char** argv){
     struct sockaddr_in server_addr;
@@ -36,8 +36,9 @@ int main(int argc, char** argv){
         exit(1);
     }
 
+    // CLIENT NEEDS TO POLL TOO SO IT CAN READ ALL THE TEXT IT GET SENT BACK
     while (fgets(request, MAX_BUFFER_LEN, stdin) != NULL){
-        write(client_descriptor, request, MAX_BUFFER_LEN);
+        write(client_descriptor, request, strlen(request));
 
         read(client_descriptor, response, MAX_BUFFER_LEN);
 
