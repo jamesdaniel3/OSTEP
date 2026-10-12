@@ -4,6 +4,35 @@
 #include "user.h"
 #include "x86.h"
 
+int 
+thread_create(void(*start_routine)(void*, void*), void* arg1, void* arg2)
+{
+   void* child_stack = malloc(4096); // I don't think PGSIZE is here
+   
+   if (!child_stack){
+        return -1;
+   }
+
+   return clone(start_routine, arg1, arg2, child_stack);
+}
+
+int 
+thread_join()
+{
+    void* user_stack;
+    int pid = join(&user_stack);
+
+    if (!user_stack){
+        pid = -1;
+    }
+
+    if (pid != -1 && user_stack){
+        free(user_stack);
+    }
+
+    return pid;
+}
+
 char*
 strcpy(char *s, const char *t)
 {

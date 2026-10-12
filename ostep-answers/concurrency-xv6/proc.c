@@ -221,7 +221,7 @@ fork(void)
   return pid;
 }
 
-// Exit the current process.  Does not return.
+// Exit the current process or thread.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void
@@ -249,15 +249,15 @@ exit(void)
 
   acquire(&ptable.lock);
 
-  // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
+  wakeup1(curproc->parent); 
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
+      if(p->state == ZOMBIE){
+          wakeup1(initproc);
+      }
     }
   }
 
@@ -281,7 +281,7 @@ wait(void)
     // Scan through table looking for exited children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curproc)
+      if(p->parent != curproc || p->pgdir == curproc->pgdir) // must not share address space
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
@@ -289,7 +289,110 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        freevm(p->pgdir);
+        freevm(p->pgdir);  // this should only happen if it's the last ref
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+// create a new kernel thread which shares the address space of the calling process
+// copy file descriptors as is in fork
+// use stack as the user stack for the new process
+// pass arg1 and arg2 to the stack 
+// new thread starts execution at the address specified by fcn
+// return the PID of the new thread to the parent or -1 on failure
+int
+clone(void(*fcn)(void*, void*), void* arg1, void* arg2, void* stack)
+{
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  np->parent = curproc;     // is a thread the child of the process that created it?
+  *np->tf = *curproc->tf;
+
+  // Clear %eax so that clone returns 0 in the new thread.
+  np->tf->eax = 0;
+
+  // pass func args to stack
+  uint ustack[3];
+  ustack[0] = 0xffffffff;  // fake return PC
+  ustack[1] = (uint)arg1;
+  ustack[2] = (uint)arg2;  
+
+  if(copyout(np->pgdir, (uint)stack, ustack, 3*sizeof(uint)) < 0){
+    return -1;
+  }
+
+  // are there more registers we need to set? (maybe ebp?)
+  np->tf->esp = (uint) stack;
+  np->tf->eip = (uint) fcn;
+  
+  // copy file descriptors I think
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  pid = np->pid;
+
+  acquire(&ptable.lock);
+
+  np->state = RUNNABLE;
+
+  release(&ptable.lock);
+
+  return pid;
+}
+
+
+// wait for a child thread that shares the address space of the calling thread 
+int 
+join(void** stack)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc || p->pgdir != curproc->pgdir) // also must share address space
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        *stack = (void *)p->tf->esp;   // copy stack pointer to be freed by consumer  
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
