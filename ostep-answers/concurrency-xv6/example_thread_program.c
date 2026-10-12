@@ -4,6 +4,7 @@
 void test_func(void* arg1, void* arg2){
     int first_arg = *(int *)arg1;
     int second_arg = *(int *)arg2;
+    
     printf(1, "hello from child with args %d and %d\n", first_arg, second_arg);
     exit();
 }

@@ -42,4 +42,12 @@ int atoi(const char*);
 int thread_create(void (*start_routine)(void *, void *), void* arg1, void* arg2);
 int thread_join();
 
-// need lock functions as well; not sure where to define lock_t
+// thread lock stuff, still in ulib.c
+typedef struct lock_t lock_t;
+struct lock_t {
+    int ticket;
+    volatile int turn;  // prevent spin lock from optimizing out loads of this var
+};
+void lock_init(lock_t*);
+void lock_acquire(lock_t*);
+void lock_release(lock_t*);

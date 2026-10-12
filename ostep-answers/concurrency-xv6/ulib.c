@@ -4,6 +4,44 @@
 #include "user.h"
 #include "x86.h"
 
+void 
+lock_init(lock_t* lock)
+{
+    // it should probs be enforced that init can only be called once per lock
+    // didn't handle null pointers b/c nothing else is; program will crash
+    lock->ticket = 0;
+    lock->turn = 0;
+}
+
+int 
+_fetch_and_add(int* var, int val)
+{
+    asm volatile(
+        "lock; xaddl %0, %1"
+        : "+r" (val), "+m" (*var) // input and output 
+        : // No input-only
+        : "memory"
+    );
+
+    return val; // xaddl swaps the old value of var into val
+}
+
+void 
+lock_acquire(lock_t* lock)
+{
+    int my_turn = _fetch_and_add(&lock->ticket, 1);
+    while (lock->turn != my_turn){
+        // spin
+        continue;
+    } 
+}
+
+void 
+lock_release(lock_t* lock)
+{
+    lock->turn += 1;
+}
+
 int 
 thread_create(void(*start_routine)(void*, void*), void* arg1, void* arg2)
 {

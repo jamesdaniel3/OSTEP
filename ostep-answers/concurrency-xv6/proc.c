@@ -351,10 +351,12 @@ clone(void(*fcn)(void*, void*), void* arg1, void* arg2, void* stack)
   np->tf->esp = (uint) stack;
   np->tf->eip = (uint) fcn;
   
-  // copy file descriptors I think
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
+  // copy file descriptors from creator
+  for(i = 0; i < NOFILE; i++){
+    if(curproc->ofile[i]){
       np->ofile[i] = filedup(curproc->ofile[i]);
+    }
+  }
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
