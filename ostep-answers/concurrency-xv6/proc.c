@@ -161,16 +161,30 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
+  acquire(curproc->mem_lock);
   sz = curproc->sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
-      return -1;
+    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
+        release(curproc->mem_lock);
+        return -1;
+    }
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
-      return -1;
+    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
+        release(curproc->mem_lock);
+        return -1;
+    }
   }
-  curproc->sz = sz;
+
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    // make sure that all threads get their size updated as well
+    if (p->pgdir == curproc->pgdir) {
+        p->sz = sz;
+    }
+  }
+
   switchuvm(curproc);
+  release(curproc->mem_lock);
   return 0;
 }
 
@@ -189,6 +203,8 @@ fork(void)
     return -1;
   }
 
+  initlock(np->mem_lock, "memory lock");
+  acquire(curproc->mem_lock);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -197,6 +213,7 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
+  release(curproc->mem_lock);
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
@@ -217,7 +234,7 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-
+  
   return pid;
 }
 
@@ -329,10 +346,13 @@ clone(void(*fcn)(void*, void*), void* arg1, void* arg2, void* stack)
     return -1;
   }
 
+  acquire(curproc->mem_lock);
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
+  release(curproc->mem_lock);
   np->parent = curproc;     // is a thread the child of the process that created it?
   *np->tf = *curproc->tf;
+  np->mem_lock = curproc->mem_lock; // same lock because of shared address space
 
   // Clear %eax so that clone returns 0 in the new thread.
   np->tf->eax = 0;

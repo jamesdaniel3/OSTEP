@@ -7,7 +7,7 @@ int value;
 lock_t* lock;
 
 void test_func(void* arg1, void* arg2){
-    lock_acquire(lock);
+    lock_acquire(lock);  // uncomment the lock acquire and release and you will see the program fail
     int temp = value;
     sleep(1);          // force a process switch in critical section
     temp += MILLION;
