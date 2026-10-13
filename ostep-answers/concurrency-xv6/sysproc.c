@@ -86,13 +86,20 @@ sys_getpid(void)
 int
 sys_sbrk(void)
 {
-  int n;
+  int addr, n;
+  struct proc *p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
+
+  acquire(p->mem_lock);
+  addr = p->sz;
+  release(p->mem_lock);
+
   if(growproc(n) < 0)
     return -1;
-  return myproc()->sz;
+  
+  return addr;
 }
 
 int
