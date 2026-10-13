@@ -18,12 +18,12 @@ int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
-  acquire(curproc->mem_lock);
+  acquire(&curproc->mem_lock);
   if (addr >= curproc->sz || addr+4 > curproc->sz){
-     release(curproc->mem_lock);
+     release(&curproc->mem_lock);
      return -1;
   }
-  release(curproc->mem_lock);
+  release(&curproc->mem_lock);
   *ip = *(int*)(addr);
   return 0;
 }
@@ -37,20 +37,20 @@ fetchstr(uint addr, char **pp)
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  acquire(curproc->mem_lock);
+  acquire(&curproc->mem_lock);
   if (addr >= curproc->sz) {
-    release(curproc->mem_lock);  
+    release(&curproc->mem_lock);  
     return -1;
   }
   *pp = (char*)addr;
   ep = (char*)curproc->sz;
   for(s = *pp; s < ep; s++){
     if(*s == 0) {
-      release(curproc->mem_lock);
+      release(&curproc->mem_lock);
       return s - *pp;
     }
   }
-  release(curproc->mem_lock);
+  release(&curproc->mem_lock);
   return -1;
 }
 
@@ -72,12 +72,12 @@ argptr(int n, char **pp, int size)
  
   if(argint(n, &i) < 0)
     return -1;
-  acquire(curproc->mem_lock);
+  acquire(&curproc->mem_lock);
   if (size < 0 || (uint)i >= curproc->sz || (uint)i+size > curproc->sz){
-    release(curproc->mem_lock);
+    release(&curproc->mem_lock);
     return -1;
   }
-  release(curproc->mem_lock);
+  release(&curproc->mem_lock);
   *pp = (char*)i;
   return 0;
 }
