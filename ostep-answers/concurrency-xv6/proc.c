@@ -10,6 +10,7 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct spinlock locks[NPROC];
 } ptable;
 
 static struct proc *initproc;
@@ -138,7 +139,8 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-  initlock(&p->mem_lock, "memory lock");
+  p->mem_lock = &ptable.locks[p->pid];
+  initlock(p->mem_lock, "memory lock");
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -162,16 +164,16 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
-  acquire(&curproc->mem_lock);
+  acquire(curproc->mem_lock);
   sz = curproc->sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
-        release(&curproc->mem_lock);
+        release(curproc->mem_lock);
         return -1;
     }
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
-        release(&curproc->mem_lock);
+        release(curproc->mem_lock);
         return -1;
     }
   }
@@ -185,7 +187,7 @@ growproc(int n)
   }
 
   switchuvm(curproc);
-  release(&curproc->mem_lock);
+  release(curproc->mem_lock);
   return 0;
 }
 
@@ -204,8 +206,9 @@ fork(void)
     return -1;
   }
 
-  initlock(&np->mem_lock, "memory lock");
-  acquire(&curproc->mem_lock);
+  np->mem_lock = &ptable.locks[np->pid];
+  initlock(np->mem_lock, "memory lock");
+  acquire(curproc->mem_lock);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -214,7 +217,7 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
-  release(&curproc->mem_lock);
+  release(curproc->mem_lock);
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
@@ -347,10 +350,10 @@ clone(void(*fcn)(void*, void*), void* arg1, void* arg2, void* stack)
     return -1;
   }
 
-  acquire(&curproc->mem_lock);
+  acquire(curproc->mem_lock);
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
-  release(&curproc->mem_lock);
+  release(curproc->mem_lock);
   np->parent = curproc;     // is a thread the child of the process that created it?
   *np->tf = *curproc->tf;
   np->mem_lock = curproc->mem_lock; // same lock because of shared address space
