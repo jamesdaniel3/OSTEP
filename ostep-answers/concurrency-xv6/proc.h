@@ -35,6 +35,9 @@ struct context {
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
+// It would be better to store sz and mem_lock in a shared struct as the lock
+    // needs to be aquired for any update, but I am not willing to do that 
+    // refactor atm
 struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table

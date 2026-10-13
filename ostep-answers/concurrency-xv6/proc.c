@@ -179,12 +179,14 @@ growproc(int n)
   }
 
   struct proc *p;
+  acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     // make sure that all threads get their size updated as well
     if (p->pgdir == curproc->pgdir) {
         p->sz = sz;
     }
   }
+  release(&ptable.lock);
 
   switchuvm(curproc);
   release(curproc->mem_lock);
@@ -350,13 +352,13 @@ clone(void(*fcn)(void*, void*), void* arg1, void* arg2, void* stack)
     return -1;
   }
 
+  np->mem_lock = curproc->mem_lock; // same lock because of shared address space
   acquire(curproc->mem_lock);
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
   release(curproc->mem_lock);
   np->parent = curproc;     // is a thread the child of the process that created it?
   *np->tf = *curproc->tf;
-  np->mem_lock = curproc->mem_lock; // same lock because of shared address space
 
   // Clear %eax so that clone returns 0 in the new thread.
   np->tf->eax = 0;
