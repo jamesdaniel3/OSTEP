@@ -7,7 +7,9 @@
 #include <unistd.h>
 #include "mapreduce.h"
 
-#define STANDARD_FILE_BYTES (16 * 1000 * 1000)
+// I want to use 16 MB slices in the future but I don't feel like getting that 
+    // much txt right now 
+#define STANDARD_FILE_BYTES (1 * 1000 * 1000) 
 #define TEMP_FILE_NAME_SIZE 50
 
 void MR_Emit(char *key, char *value){
@@ -23,17 +25,14 @@ unsigned long MR_DefaultHashPartition(char *key, int num_partitions) {
     return hash % num_partitions;
 }
 
-void MR_Run(
-    int argc, char *argv[], 
-    Mapper map, int num_mappers, 
-    Reducer reduce, int num_reducers, 
-    Partitioner partition
+void create_files_to_map(
+    int num_files, char** input_files,
+    char** results, size_t* num_results
 ){
-    assert(argc >= 2);
-    char** args;
-    size_t num_args = 0;
-    for (int i = 1; i < argc; i++){
-        int read_fd = open(argv[argc], O_RDONLY);
+    assert(num_files >= 1);
+    mkdir("temp", 0777);  // I think these group perms just mean everyone has everything
+    for (int i = 0; i < num_files; i++){
+        int read_fd = open(input_files[i], O_RDONLY);
         assert(read_fd != -1);
 
         struct stat sb;
@@ -43,12 +42,12 @@ void MR_Run(
         if (sb.st_size % STANDARD_FILE_BYTES > 0){
             new_files++;
         }
-        num_args += new_files;
+        *num_results += new_files;
 
-        args = realloc(args, num_args * sizeof(char*));
-        assert(args != NULL);
+        results = realloc(results, *num_results * sizeof(char*));
+        assert(results != NULL);
 
-        char file_buffer[STANDARD_FILE_BYTES];
+        char file_buffer[STANDARD_FILE_BYTES / 8];
         for(int j = 0; j < new_files; j++){
             char* file_name = malloc(TEMP_FILE_NAME_SIZE);
             assert(file_name != NULL);
@@ -56,19 +55,33 @@ void MR_Run(
             int name_bytes_written = snprintf(file_name, TEMP_FILE_NAME_SIZE, "temp/temp_%d_%d.txt", i, j); 
             assert(name_bytes_written >= 0);
 
-            int bytes_read = read(read_fd, file_buffer, STANDARD_FILE_BYTES);
-            assert(bytes_read != -1);
-
             // this should maybe have another flag for perms
-            int write_fd = open(file_name, O_WRONLY | O_CREAT); 
+            int write_fd = open(file_name, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR); 
             assert(write_fd != -1);
+            
+            for (size_t x = 0; x < 8; x++){
+                int bytes_read = read(read_fd, file_buffer, STANDARD_FILE_BYTES / 8);
+                assert(bytes_read != -1);
 
-            int bytes_written = write(write_fd, file_buffer, bytes_read);
-            assert(bytes_written != -1);
+                int bytes_written = write(write_fd, file_buffer, bytes_read);
+                assert(bytes_written != -1);
+            }
 
-            args[num_args - (new_files - j)] = file_name;
+            results[*num_results - (new_files - j)] = file_name;
         }
     }
+}
+
+void MR_Run(
+    int argc, char *argv[], 
+    Mapper map, int num_mappers, 
+    Reducer reduce, int num_reducers, 
+    Partitioner partition
+){
+    char** thread_args = NULL;
+    size_t num_thread_args = 0;
+
+    create_files_to_map(argc - 1, argv + 1, thread_args, &num_thread_args);
 
 
     // create a thread pool containing num_mappers threads
