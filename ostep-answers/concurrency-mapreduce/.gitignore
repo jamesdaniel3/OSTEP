@@ -1,3 +1,5 @@
 books.txt
 pull-books.sh
 temp/*
+*.o
+wordcount
