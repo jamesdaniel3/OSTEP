@@ -56,6 +56,8 @@ Node* init_node(char* key, char* value){
     strcpy(new_node->values[0], value);
     new_node->value_count = 1;
 
+    new_node->next = NULL;
+
     return new_node;
 }
 
@@ -64,7 +66,7 @@ void destroy_node(Node* node){
     for (size_t i = 0; i < node->value_count; i++){
         free(node->values[i]);
     }
-
+    free(node->values);
     free(node->key);
     free(node);
 }
@@ -90,8 +92,7 @@ Node* locate_key(Node* head, char* key){
         if (head == NULL){
             break;
         }
-
-        if (strcmp(head->key, key) == 0){
+        if (strcmp(head->key, key) == 0){  // this should be case insensative in the future
             break;
         }
 
@@ -103,9 +104,9 @@ Node* locate_key(Node* head, char* key){
 
 void MR_Emit(char *key, char *value){
     unsigned long partition_number = partition_function(key, num_partitions);
-    PartitionHead partition_head = partitions[partition_number];
-    Node* current_node = partition_head.head;
-    pthread_mutex_lock(&partition_head.lock);
+    PartitionHead* partition_head = partitions + partition_number;
+    Node* current_node = partition_head->head;
+    pthread_mutex_lock(&partition_head->lock);
     Node* key_node = locate_key(current_node, key);
 
     // I think I can simplify locking below
@@ -115,9 +116,11 @@ void MR_Emit(char *key, char *value){
         
         if(current_node == NULL){ 
             // first key at partition
-            partition_head.head = key_node;
+            partition_head->head = key_node;
+            pthread_mutex_unlock(&partition_head->lock);
             return;
         }
+
         
         // this lookup should be binary search in the future
         while(
@@ -131,18 +134,20 @@ void MR_Emit(char *key, char *value){
         if(current_node->next == NULL){
             // adding key to end of list 
             current_node->next = key_node;
+            pthread_mutex_unlock(&partition_head->lock);
             return;
         }
 
         // inserting node in list 
        key_node->next = current_node->next;
        current_node->next = key_node;
+       pthread_mutex_unlock(&partition_head->lock);
        return;
     }
 
     // key node has been found, we are adding to the value list
     if (key_node->value_count >= .8 * key_node->value_capacity){
-        key_node->values = realloc(key_node->values, key_node->value_capacity * 2);
+        key_node->values = realloc(key_node->values, sizeof(char*) * key_node->value_capacity * 2);
         assert(key_node->values != NULL);
         key_node->value_capacity *= 2;
     }
@@ -154,7 +159,7 @@ void MR_Emit(char *key, char *value){
     strcpy(new_value, value);
     key_node->values[key_node->value_count] = new_value;
     key_node->value_count++;
-    pthread_mutex_unlock(&partition_head.lock);
+    pthread_mutex_unlock(&partition_head->lock);
     return;
 }
 
@@ -228,13 +233,13 @@ void MR_Run(
     Reducer reduce, int num_reducers, 
     Partitioner partition
 ){
-    char** thread_args = NULL;
-    size_t num_thread_args = 0;
+    char** mapper_thread_args = NULL;
+    size_t num_mapper_thread_args = 0;
     num_partitions = num_reducers;
     partition_function = partition;
     map_function = map;
 
-    create_files_to_map(argc - 1, argv + 1, &thread_args, &num_thread_args);
+    create_files_to_map(argc - 1, argv + 1, &mapper_thread_args, &num_mapper_thread_args);
 
     // create a thread pool containing num_mappers threads
     pthread_t* mapper_thread_pool = malloc(sizeof(pthread_t) * num_mappers);
@@ -242,7 +247,7 @@ void MR_Run(
 
     partitions = calloc(num_partitions, sizeof(PartitionHead));
     assert(partitions != NULL);
-    for (size_t i = 0; i < num_partitions; i++){
+    for (size_t i = 0; i < 1; i++){
         int rc = pthread_mutex_init(&partitions[i].lock, NULL);
         assert(rc == 0);
     }
@@ -253,7 +258,7 @@ void MR_Run(
             mapper_thread_pool + i, 
             NULL, 
             map_wrapper, 
-            (void *) thread_args[i]
+            (void *) mapper_thread_args[i]
         );
     }
 
@@ -263,6 +268,11 @@ void MR_Run(
 
     // create a thread pool containing num_reducers threads
     // start reading from the big concurrent data structure 
+    free(mapper_thread_pool);
+    for (size_t i = 0; i < num_mapper_thread_args; i++){
+        free(mapper_thread_args[i]);
+    }
+    free(mapper_thread_args);
     destroy_partitions();
 }
 
