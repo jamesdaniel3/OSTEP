@@ -9,9 +9,7 @@
 #include <unistd.h>
 #include "mapreduce.h"
 
-// I want to use 16 MB slices in the future but I don't feel like getting that 
-    // much txt right now 
-#define STANDARD_FILE_BYTES (1 * 1000 * 1000) 
+#define STANDARD_FILE_BYTES (1 * 1000 * 1000) // 1 MB Per Temp File  
 #define TEMP_FILE_NAME_SIZE 50
 
 // could move to per node locks if it seems faster in the future
@@ -350,15 +348,18 @@ void MR_Run(
     }
 
 
-    // create a thread pool containing num_reducers threads
-    // start reading from the big concurrent data structure 
+    // clean up 
     free(mapper_thread_pool);
+    free(map_info);
+    free(reducer_thread_args);
+    destroy_partitions();
+
+    for(size_t i = 0; i < num_mapper_thread_args; i++){
+        remove(mapper_thread_args[i]);
+    }
+    rmdir("temp");    
     for (size_t i = 0; i < num_mapper_thread_args; i++){
         free(mapper_thread_args[i]);
     }
     free(mapper_thread_args);
-    free(map_info);
-    free(reducer_thread_args);
-    destroy_partitions();
 }
-
