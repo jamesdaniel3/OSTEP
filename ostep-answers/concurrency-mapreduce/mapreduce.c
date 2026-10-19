@@ -14,8 +14,7 @@
 #define STANDARD_FILE_BYTES (1 * 1000 * 1000) 
 #define TEMP_FILE_NAME_SIZE 50
 
-// we should start out by locking at the partition level and only move to 
-// hand-over-hand locking if we know it will work and improve the result 
+// could move to per node locks if it seems faster in the future
 typedef struct Node Node;
 struct Node {
     char* key;
@@ -24,6 +23,7 @@ struct Node {
     size_t value_capacity;
     size_t value_count;
     Node* next;
+    size_t next_iterator_index;
 };
 
 typedef struct PartitionHead PartitionHead;
@@ -32,10 +32,21 @@ struct PartitionHead {
     pthread_mutex_t lock;
 };
 
+char** mapper_thread_args;
+size_t num_mapper_thread_args;
+
+typedef struct MapperLock MapperLock;
+struct MapperLock {
+    pthread_mutex_t lock;
+    size_t next_index;
+};
+MapperLock* map_info;
+
 PartitionHead* partitions;
 size_t num_partitions;
 Partitioner partition_function;
 Mapper map_function;
+Reducer reduce_function;
 
 Node* init_node(char* key, char* value){
     Node* new_node = malloc(sizeof(Node));
@@ -57,6 +68,7 @@ Node* init_node(char* key, char* value){
     new_node->value_count = 1;
 
     new_node->next = NULL;
+    new_node->next_iterator_index = 0;
 
     return new_node;
 }
@@ -220,10 +232,47 @@ void create_files_to_map(
     }
 }
 
+char* key_iterator(char* key, int partition_index) {
+    PartitionHead partition_head = partitions[partition_index];
+    Node* current_node = partition_head.head;
+    while (strcmp(current_node->key, key) != 0){        
+        current_node = current_node->next;
+    }
+
+    if (current_node->next_iterator_index == current_node->value_count){
+        current_node->next_iterator_index = 0;
+        return NULL;
+    }
+
+    current_node->next_iterator_index++;
+    return current_node->values[current_node->next_iterator_index - 1];
+}
+
+void* reduce_wrapper(void* arg){
+    size_t partition_index = *(size_t*)arg;
+    PartitionHead partition_head = partitions[partition_index];
+    Node* current_node = partition_head.head;
+    while (current_node != NULL){        
+        reduce_function(current_node->key, key_iterator, partition_index);
+        current_node = current_node->next;
+    }
+    return NULL;
+}
+
 void* map_wrapper(void* arg){
-    assert(arg != NULL);
-    char* cleaned_arg = (char *)arg;
-    map_function(cleaned_arg);
+    for (;;){
+        pthread_mutex_lock(&map_info->lock);
+
+        if(map_info->next_index >= 1){
+            pthread_mutex_unlock(&map_info->lock);
+            break;
+        }
+
+        map_info->next_index++;
+        pthread_mutex_unlock(&map_info->lock);
+
+        map_function(mapper_thread_args[map_info->next_index - 1]);
+    }
     return NULL;
 }
 
@@ -233,11 +282,12 @@ void MR_Run(
     Reducer reduce, int num_reducers, 
     Partitioner partition
 ){
-    char** mapper_thread_args = NULL;
-    size_t num_mapper_thread_args = 0;
+    mapper_thread_args = NULL;
+    num_mapper_thread_args = 0;
     num_partitions = num_reducers;
     partition_function = partition;
     map_function = map;
+    reduce_function = reduce;
 
     create_files_to_map(argc - 1, argv + 1, &mapper_thread_args, &num_mapper_thread_args);
 
@@ -247,24 +297,58 @@ void MR_Run(
 
     partitions = calloc(num_partitions, sizeof(PartitionHead));
     assert(partitions != NULL);
-    for (size_t i = 0; i < 1; i++){
+    for (size_t i = 0; i < num_partitions; i++){
         int rc = pthread_mutex_init(&partitions[i].lock, NULL);
         assert(rc == 0);
     }
 
+    map_info = malloc(sizeof(MapperLock));
+    assert(map_info != NULL);
+    map_info->next_index = 0;
+    int rc = pthread_mutex_init(&map_info->lock, NULL); 
+    assert(rc == 0);
+
     // need error checking for thread functions
-    for (int i = 0; i < 1; i++){
+    for (int i = 0; i < num_mappers; i++){
         pthread_create(
             mapper_thread_pool + i, 
             NULL, 
             map_wrapper, 
-            (void *) mapper_thread_args[i]
+            NULL
         );
     }
 
-    for (int i = 0; i < 1; i++){
+    for (int i = 0; i < num_mappers; i++){
         pthread_join(mapper_thread_pool[i], NULL);
     }
+
+    pthread_t* reducer_thread_pool = malloc(sizeof(pthread_t) * num_reducers);
+    assert(reducer_thread_pool != NULL);
+    
+    size_t* reducer_thread_args =  malloc(num_reducers * sizeof(size_t));
+    assert(reducer_thread_args != 0);
+
+    for (size_t i = 0; i < num_partitions; i++){
+        reducer_thread_args[i] = i;
+    }
+
+    // need error checking for thread functions
+    for (int i = 0; i < num_reducers; i++){
+        pthread_create(
+            reducer_thread_pool + i, 
+            NULL, 
+            reduce_wrapper, 
+            (void *) &reducer_thread_args[i] 
+        );
+        // TIL: don't do pointer arithmetic on void*, GCC allows it but treats
+        // it as just adding that many bytes
+        // https://gcc.gnu.org/onlinedocs/gcc/Pointer-Arith.html
+    }
+
+    for (int i = 0; i < num_reducers; i++){
+        pthread_join(reducer_thread_pool[i], NULL);
+    }
+
 
     // create a thread pool containing num_reducers threads
     // start reading from the big concurrent data structure 
@@ -273,6 +357,8 @@ void MR_Run(
         free(mapper_thread_args[i]);
     }
     free(mapper_thread_args);
+    free(map_info);
+    free(reducer_thread_args);
     destroy_partitions();
 }
 
