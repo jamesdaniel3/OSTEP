@@ -14,6 +14,8 @@ int main(int argc, char** argv){
         char message[BUFFER_SIZE];
 
         int rc = UDP_Read(sd, &addr, message, BUFFER_SIZE);
+        
+        printf("Message Received: %s", message);
 
         if (rc > 0){
             char reply[BUFFER_SIZE];

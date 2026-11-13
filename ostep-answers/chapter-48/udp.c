@@ -1,8 +1,10 @@
 #include <netdb.h>
 #include <netinet/in.h> 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 int UDP_Open(int port){
@@ -43,10 +45,32 @@ int UDP_FillSockAddr(struct sockaddr_in* addr, char* hostname, int port){
 
 int UDP_Write(int sd, struct sockaddr_in* addr, char* buffer, int n){
     int addr_len = sizeof(struct sockaddr_in);
-    return sendto(sd, buffer, n, 0, (struct sockaddr *)addr, addr_len);
+    int response_addr_len = sizeof(struct sockaddr_in);
+    char response_buffer[1024];
+
+    int ret;
+    while (1){
+        ret = sendto(sd, buffer, n, 0, (struct sockaddr*)addr, addr_len);
+        sleep(1);   // 1 second is too long to sleep for but for now it's fine        
+        int rc = recvfrom(
+            sd, response_buffer, 1024, MSG_DONTWAIT, 
+            (struct sockaddr*)addr, (socklen_t*)&response_addr_len
+        );
+
+        if (rc >= 0){
+            break;
+        }
+    }
+
+    return ret;
 }
 
 int UDP_Read(int sd, struct sockaddr_in* addr, char* buffer, int n){
     int len = sizeof(struct sockaddr_in);
-    return recvfrom(sd, buffer, n, 0, (struct sockaddr *)addr, (socklen_t *)&len);
+    int rc = recvfrom(sd, buffer, n, 0, (struct sockaddr*)addr, (socklen_t*)&len);
+    
+    char ack_buffer[4] = "ack";
+    sendto(sd, ack_buffer, 4, 0, (struct sockaddr*)addr, sizeof(struct sockaddr_in));
+
+    return rc;
 }
