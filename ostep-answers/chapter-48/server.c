@@ -1,11 +1,12 @@
 #include <assert.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <string.h>
 #include "udp.h"
 
 #define BUFFER_SIZE 1024
 
-int main(int argc, char** argv){
+int main(){
     int sd = UDP_Open(10000);
     assert(sd > -1);
 
@@ -15,14 +16,15 @@ int main(int argc, char** argv){
 
         int rc = UDP_Read(sd, &addr, message, BUFFER_SIZE);
         
-        printf("Message Received: %s", message);
+        printf("Server message received: %s\n", message);
 
         if (rc > 0){
             char reply[BUFFER_SIZE];
-            sprintf(reply, "Goodbye World!\n");
-            rc = UDP_Write(sd, &addr, reply, BUFFER_SIZE);
+            sprintf(reply, "Goodbye World!");
+            rc = UDP_Write(sd, &addr, reply, 15);
+            bzero(reply, BUFFER_SIZE);
         }
-    }
 
-    return 0;
+        bzero(message, BUFFER_SIZE);
+    }
 }
