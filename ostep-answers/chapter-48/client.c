@@ -11,7 +11,7 @@ int main(){
     int rc = UDP_FillSockAddr(&addr_send, "127.0.0.1", 10000);
 
     char message[28];
-    sprintf(message, "0123456789ABCDEFGHIJ");
+    snprintf(message, 21, "0123456789ABCDEFGHIJ");
     rc = UDP_Write(sd, &addr_send, message, 21);
 
     if (rc > 0){

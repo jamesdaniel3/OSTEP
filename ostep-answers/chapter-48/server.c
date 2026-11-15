@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <string.h>
 #include "udp.h"
 
 #define BUFFER_SIZE 1024
@@ -20,11 +19,8 @@ int main(){
 
         if (rc > 0){
             char reply[BUFFER_SIZE];
-            sprintf(reply, "Goodbye World!");
+            snprintf(reply, 15, "Goodbye World!");
             rc = UDP_Write(sd, &addr, reply, 15);
-            bzero(reply, BUFFER_SIZE);
         }
-
-        bzero(message, BUFFER_SIZE);
     }
 }
