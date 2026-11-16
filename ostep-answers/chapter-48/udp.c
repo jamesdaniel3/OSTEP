@@ -13,6 +13,24 @@
 #define MAX_MESSAGE_LEN 15 // seems like theoretical max len is way longer than anyone supports and most people just set an arbitrary limit
 #define STARTING_QUEUE_CAPACITY 10
 
+/*
+Unfortunately abandoning ship with this one. The core problem with it is that everything reads from the same socket.
+This means that both the receiver which is constantly looping, and the many writes that are all trying to get ACK's,
+are all constantly stealing each other's data. I think I put in enough defensive logic for this to prevent things 
+from breaking, but the performance is horrid. 
+
+I think to fix it I would really want to start from the top with the async structure in mind and I'm too tired to
+do that again. The logic I'm thinking would be this:
+- on startup of the server, create a background thread that will loop forever which will be the only consumer of 
+    - packets sent to the server
+- this thread will read each packet and decide if it's an ack or data
+    - if it's an ack, update the relevant write request (haven't really thought through the data structure supporting this)
+    - if it's data, call a handle_data function and bascially do what the my_receive function does
+- my_receive will now have to block until the most recent message is completed and then return that; bascially splitting out the 
+    - wait and return logic from the data update logic 
+- the wait function asked for the in the directions would just wait until all pending writes are done 
+*/
+
 int my_open(int port){
     int sd;
     if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
