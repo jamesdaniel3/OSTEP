@@ -1,5 +1,5 @@
 CC := clang
-ARGS := -Wall -Wextra
+ARGS := -Wall -Wextra -pthread -g -fsanitize=address
 
 all: client server
 
